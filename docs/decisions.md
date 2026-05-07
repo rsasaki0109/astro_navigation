@@ -623,3 +623,54 @@ Consequences:
   consistency check, attitude rejection on low-magnitude predicted-but-unobserved counts) remain
   in PLAN as a deeper hardening step. Restart by itself is not a guarantee against pathological
   fixtures, but it is the minimum-invasive fix that recovers correctness in this regime.
+
+## 2026-05-08: HYG mag&le;9 Reaches Algorithmic Density Ceiling — Sky-Cell Is Now Prerequisite
+
+Decision: 60000 indexed stars on HYG mag&le;9 is the new correctness-extension datapoint
+(32/32 correct on a false=0 smoke), but query latency at this density is ~5 minutes and
+candidate_hypotheses are 4.7x of the 40k mag&le;8 baseline. The query path needs algorithmic
+candidate-density reduction (sky-cell / HEALPix partitioning) before mag&le;9 becomes a routine
+operating point. Promote sky-cell partitioning to top of the PLAN backlog.
+
+Reasoning: at 60k mag&le;9, the index has 748 M pairs (2.25x of 40k mag&le;8's 332 M), but
+candidate_hypotheses per query is 701k (vs ~150k at 40k mag&le;8). The candidate count grows
+faster than the pair count because for any given pair-edge bin, the number of catalog pairs with
+that edge grows roughly with density, and triples are formed by joining 3 such pair lists, so
+candidate_hypotheses ~ density^2 per false_count regime. Cand_gen latency scales accordingly:
+269.9 s at 60k mag&le;9 vs ~50 s at 40k mag&le;8. Tightening parameters further (smaller
+tolerance, smaller neighbor-bins) is unsafe at the existing 0.1 px noise level. The principled
+fix is to partition the catalog into sky cells and only consider pairs whose predicted observed
+cell matches the actual observation cell.
+
+Consequences:
+
+- 60k mag&le;9 stays as a correctness-extension scout, not a headline operating point. The
+  README has it labeled "deeper-catalog scout" with an explicit ~5 min query disclaimer.
+- The PLAN's #1 spot is now sky-cell partitioning (was: mag&le;9 conversion + benchmark, which
+  is now done at scout level).
+- mag&le;9 80k+ remains gated by sky-cell. Even if memory were not a concern, candidate-density
+  growth would push query past 10 minutes at 80k.
+- Future C++ port should freeze on the mag&le;8 + restart pipeline first; mag&le;9 / sky-cell
+  work is parallel.
+
+## 2026-05-08: int32 Intermediate Buffers In `build_star_pair_index.py`
+
+Decision: switch `pair_lhs_chunks`, `pair_rhs_chunks`, `pair_bin_chunks` and the concatenated
+`all_*` / `sorted_*` arrays from int64 to int32. Free the chunks list and the unsorted arrays
+explicitly with `del` once they are no longer needed.
+
+Reasoning: the first 60000 mag&le;9 build died with SIGKILL even with `--skip-pkl`. Catalog
+indices fit comfortably in int32 (max 80k vs 2.1G int32 limit) and bin keys are in the low
+thousands, so int32 is sufficient. Halving intermediate dtype halves the per-array memory; the
+explicit `del` frees the unsorted intermediate before sorting allocates new buffers. With these
+two changes, 60000 mag&le;9 builds in 654 s with peak ~30 GB on a 62 GB workstation.
+
+Consequences:
+
+- Bit-exact `.npz` equivalence verified against the prior int64 build on a 500-star fixture
+  (`bin_keys`, `bin_offsets`, `pair_endpoints`, `vectors`, `magnitudes` all `np.array_equal`).
+- All existing fixtures and benchmark numbers continue to be valid because the on-disk format
+  was already int32 (the dtype reduction only touched in-process buffers).
+- 80k+ density still risks OOM (extrapolates to ~50-55 GB peak) — the next memory-side fix is
+  a streaming or two-pass build that does not materialize the full pair list at once. Deferred
+  until 80k is actually attempted.

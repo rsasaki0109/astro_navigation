@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (realism + restart trials=24: 768/768 correct, residual failure &lt;3.1% at 95% CI; magnitude-scaled noise added as third realism axis without correctness regression)
+Last updated: 2026-05-08 (60000 mag&le;9 smoke: 32/32 correct extends past the mag&le;8 catalog ceiling; query ~5 min so sky-cell partitioning is now the prerequisite for routine operation at mag&le;9)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -714,14 +714,19 @@ tolerance window.
 
 The next handoff should pick from the following, in roughly decreasing value:
 
-1. **Push past the catalog density ceiling.** Convert HYG mag&le;9 (~120k stars), filter to a
-   resolved subset, and benchmark. Pair-count growth from 332M (40k) to ~3G (80k) plus
-   `np.argsort` cost makes peak memory the next risk even with `--skip-pkl`. Worth doing only if
-   real-camera mag-limit testing shows mag&le;8 is too restrictive.
+1. **Sky-cell / HEALPix partitioning of the pair index** — newly promoted. The 60000 mag&le;9
+   smoke confirms correctness extends past the mag&le;8 catalog ceiling (32/32 correct), but
+   query is now ~5 min/attempt because candidate_hypotheses scales as ~density² (700k at 60k
+   mag&le;9 vs 150k at 40k mag&le;8). Sky-cell partitioning of the catalog (and a corresponding
+   per-cell pair index) is the standard scalability fix: a query attitude only consults the
+   pair lists that intersect the predicted sky cell of the observations, dropping candidate
+   density by a factor proportional to the cell count. Required before mag&le;9 (or higher)
+   becomes a routine operating point.
 
-2. **Sky-cell / HEALPix partitioning of the pair index.** Currently deferred — at 40000 mag&le;8
-   we are still at ~70 s worst-case query, comfortable for cold-start LIS. Becomes important if
-   step 1 happens or if a sub-10 s online identifier is needed.
+2. **Push higher within mag&le;9 once step 1 lands.** mag&le;9 has 83479 stars; 80k+ index would
+   exercise the deepest density we have. Build memory remains the secondary concern even with
+   int32 buffers (peaked ~30 GB at 60k; 80k extrapolates to ~50-55 GB on a 62 GB box).
+   Streaming-merge build is the next memory-side fix if needed.
 
 3. **Begin the C++ port of the pair-index identifier.** The Python prototype is now realism-
    validated. Pick `identify_stars_with_pair_index.py` (the hot path) first, target zero-copy
