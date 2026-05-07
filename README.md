@@ -10,11 +10,13 @@ small so that experiments converge quickly, and the Python prototypes live along
 
 ## Demo
 
-NASA POLAR Traverse 1 (lunar-analogue testbed), left camera 50 ms exposure, 11 frames. Top: SIFT
-keypoints detected on a real frame. Bottom: monocular and rectified-stereo VO trajectories aligned
-to ground truth.
+NASA POLAR Traverse 1 (lunar-analogue testbed), left camera 50 ms exposure, 11 frames. Animated:
+SIFT keypoints per frame on the left, the SIFT-monocular VO trajectory accumulating on the right
+(Sim(3) aligned to ground truth, ATE RMSE 0.019 m).
 
-![SIFT keypoints on a NASA POLAR Traverse 1 frame](docs/figures/polar_traverse1_features.png)
+![POLAR Traverse 1 SIFT features + VO trajectory animation](docs/figures/polar_traverse1_vo_demo.gif)
+
+Static comparison plot — SIFT monocular and rectified-stereo PnP overlaid on ground truth:
 
 ![POLAR Traverse 1 VO trajectories vs ground truth](docs/figures/polar_traverse1_vo_demo.png)
 
