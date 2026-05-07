@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (post 32000 mag&le;8 ps=6 full sweep — new operational ceiling)
+Last updated: 2026-05-08 (post 40000 mag&le;8 ps=6 full sweep + 16000 ps=6 high-false-rate stress — operational ceiling at the catalog density limit)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -693,28 +693,40 @@ rtk cat outputs/hyg_pair_index_observation_scaling/summary.md
 
 ## Suggested Immediate Claude Plan
 
-1. Read this `PLAN.md`.
-2. Run `rtk git status --short` to see current untracked workspace state.
-3. Run py_compile and C++ build smoke.
-4. Run a 40000-indexed-star pyramid full sweep on mag&le;8 with ps=6 + tight params:
-   ```bash
-   rtk python3 benchmarks/run_hyg_pair_index_false_scaling.py \
-     --catalog datasets/star_catalogs/hyg-v42/converted/hyg_v42_mag8p0_unit.csv \
-     --output-dir outputs/hyg_pair_index_false_scaling_40000_mag8_ps6 \
-     --index-size 40000 --stars 32 --false-counts 0 4 8 12 --trials 2 \
-     --pyramid-size 6 --tolerance-arcsec 120 --neighbor-bins 1
-   ```
-   Build ~12 min, queries ~90 s × 8 = 12 min, total ~25 min. Acceptance: 64/64 correct,
-   0 wrong, query under 2 minutes per trial. The mag&le;8 catalog has 41487 stars, so 40000 is
-   near the absolute ceiling without deeper conversion.
-5. If 40000 holds, run a `--false-counts 16 24 32` sweep at 16000 mag&le;8 to confirm ps=6
-   tolerates higher false rates (33%, 43%, 50%) before falling back to ps=8.
-6. Document the outcome in `docs/experiments.md`, `docs/decisions.md`,
-   `docs/space_localization.md`, and `README.md`.
+Both PLAN steps from the prior handoff (40000 full sweep + 16000 high-false-rate stress) are now
+done — see results in `docs/experiments.md` (entries dated 2026-05-08) and the consequence
+discussion in `docs/decisions.md`. Operational ceiling is now 40000 indexed stars on HYG mag&le;8,
+which is essentially the absolute density limit (mag&le;8 catalog caps at 41487 stars).
 
-Alternative scope: convert HYG mag&le;9 (~120k stars) and benchmark. Build time will be the
-issue: even vectorized, C(120k, 2) is ~20x of 32k's 7-minute build, so ~140 minutes. Worth it
-only if the goal is to validate the algorithm's correctness ceiling, not for routine use.
+The next handoff should pick from the following, in roughly decreasing value:
+
+1. **Push past the catalog density ceiling.** Convert HYG mag&le;9 (~120k stars), filter to a
+   resolved subset, and benchmark. Build time at 80k+ honest density is the open question:
+   vectorized 32k took 430 s, 40k took 277 s, but pair-count growth from 332M (40k) to ~3 G
+   (80k) plus np.argsort cost makes peak memory the next risk even with `--skip-pkl`. Worth doing
+   only if real-camera mag-limit testing shows mag&le;8 is too restrictive.
+
+2. **Sky-cell / HEALPix partitioning of the pair index.** Currently deferred — at 40000 mag&le;8
+   we are still at ~70 s worst-case query, comfortable for cold-start LIS. But it is the only
+   plausible algorithmic step for sub-10 s queries at full HYG density and is also the precursor
+   to a streaming online identifier. Implement after step 1 if step 1's query latency is too high.
+
+3. **Begin the C++ port of the pair-index identifier.** The Python prototype is fixed enough to
+   port. Pick `identify_stars_with_pair_index.py` (the hot path) first, target zero-copy `.npz`
+   loading via Eigen/xtensor, and keep the Python build script as the source of truth for
+   `.npz` index format. Leave the synthetic generators and the benchmark drivers in Python.
+
+4. **Realistic star camera effects.** Synthetic observations are still clean geometric
+   projections + Gaussian pixel noise. Catalog-magnitude-weighted star selection, biased false
+   positives near real stars, and centroid noise scaled by intensity are the highest-value
+   additions before claiming the prototype is camera-realistic. See section 6 below.
+
+5. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames OK
+   even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
+
+For the immediate `tugi` cycle, step 1 (mag&le;9 conversion + benchmark) is the most direct
+continuation of the lost-in-space scaling thread; step 4 is the better choice if the goal shifts
+toward pre-camera-port realism. Steps 2 and 3 are larger and want explicit user direction.
 
 ## Current Best Technical Summary
 
@@ -737,5 +749,15 @@ It also completed a 4000-star smoke:
 - 0 wrong assignments
 - around 9.8 s query time
 
-The next engineering problem is no longer basic correctness. It is making candidate generation scale beyond
-4000 indexed stars while keeping query latency acceptable.
+It now operates at honest mag&le;8 density up to the catalog ceiling:
+
+- 40000 indexed stars (mag&le;8 catalog has 41487 effective stars)
+- 332 M indexed pairs, 1016 MB `.npz`, 277 s build (vectorized)
+- 32 true observed stars + up to 12 false detections
+- 64/64 correct, 0 wrong across the full sweep
+- 61-94 s query (`--pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120 --skip-pkl`)
+- separately confirmed at 16000 mag&le;8 to be robust through 50% false rate at ~6 s query
+
+The next engineering problem is no longer scaling within the mag&le;8 catalog. It is either
+reaching past the catalog density (mag&le;9 conversion) or porting the prototype to C++ for
+real-camera deployment.

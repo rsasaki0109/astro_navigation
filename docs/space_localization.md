@@ -270,20 +270,30 @@ envelope and drops candidate generation by ~60% and total query by ~50%:
 | 12 | 64/64 | 0 | 17.95 s | 0.417 s | 25.19 s |
 
 The 32000-star pyramid full sweep with the same tight params and `--pyramid-size 6`
-(`outputs/hyg_pair_index_false_scaling_32000_mag8_ps6/`) is the new largest correctness-clean
-operating point:
+(`outputs/hyg_pair_index_false_scaling_32000_mag8_ps6/`) doubled the prior 16000 ceiling:
+64/64 correct at every false count, query 49-55 s, build 472.8 s, 213 M pairs / 667 MB `.npz`.
+
+The 40000-star sweep with the same params plus `--skip-pkl`
+(`outputs/hyg_pair_index_false_scaling_40000_mag8_ps6/`) is the current correctness-clean
+operating ceiling — essentially the absolute density limit, since the mag&le;8 catalog itself
+caps at 41487 stars:
 
 | False detections | Correct | Wrong | Cand gen | Verify | Query |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | 64/64 | 0 | 35.92 s | 0.405 s | 49.16 s |
-| 4 | 64/64 | 0 | 39.13 s | 0.452 s | 50.21 s |
-| 8 | 64/64 | 0 | 38.36 s | 0.444 s | 50.62 s |
-| 12 | 64/64 | 0 | 43.65 s | 0.553 s | 55.19 s |
+| 0 | 64/64 | 0 | 49.56 s | 0.300 s | 61.05 s |
+| 4 | 64/64 | 0 | 50.56 s | 0.326 s | 61.77 s |
+| 8 | 64/64 | 0 | 58.97 s | 0.447 s | 70.42 s |
+| 12 | 64/64 | 0 | 78.47 s | 0.538 s | 94.10 s |
 
-Index 213,021,414 pairs / 1624 MB pickle / 667 MB `.npz`, build 472.8 s. Pyramid-size 6 with the
-tight parameters cuts the prior ps=8 32000 smoke (155.7 s cand_gen / 167.6 s query) by roughly
-75%, and turns 32000 from "correctness datapoint past practical latency" into a workable
-cold-start operating point.
+Index 332,760,587 pairs / 1016 MB `.npz`, build 277.4 s vectorized. The `--skip-pkl` flag
+(2026-05-08) bypasses the dict-of-tuples + pickle representation that peaks at ~30 GB for 332 M
+pairs, and is required for any sweep at 40000+ on a typical workstation.
+
+A separate ps=6 stress test at 16000 mag&le;8 with `--false-counts 16 24 32` (33%, 43%, 50%
+false rate; `outputs/hyg_pair_index_false_scaling_16000_mag8_ps6_highfalse/`) recovered 64/64
+true IDs with 0 wrong assignments at every level, query ~6 s in all cases. Query time is
+essentially flat in false rate because the pyramid takes only the first 6 observations and
+constraint is dominated by catalog density, not total observation count.
 
 Filter and pair-index build are NumPy-vectorized as of 2026-05-08:
 
@@ -293,10 +303,12 @@ Filter and pair-index build are NumPy-vectorized as of 2026-05-08:
   vector matrix, then groups into bins via `np.argsort` + `np.unique`. 4000-star build went from
   ~52 s to ~6 s with bit-exact bucketing.
 
-Takeaway: parameter tightening + vectorized index construction take the working point to 24000
-indexed stars on mag&le;8 within the same correctness envelope. The next ceiling is around
-32000 stars where query latency passes ~3 minutes; algorithmic candidate-density reduction is
-needed beyond that.
+Takeaway: parameter tightening + vectorized index construction + `--skip-pkl` take the working
+point all the way to 40000 indexed stars on mag&le;8 within the same correctness envelope —
+essentially the absolute density ceiling without re-converting HYG to mag&le;9 (~120 k stars).
+ps=6 also tolerates 50% false rates without falling back to ps=8. Pushing past 40000 requires a
+deeper-magnitude catalog AND algorithmic candidate-density reduction (sky-cell partitioning is
+the most plausible next step).
 
 `scripts/build_star_pair_index.py` now writes a parallel `.npz` archive next to the existing
 `.pkl`. `scripts/identify_stars_with_pair_index.py` prefers the `.npz` when both are present and

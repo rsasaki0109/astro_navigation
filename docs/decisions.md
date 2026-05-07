@@ -495,3 +495,59 @@ Consequences:
   most amenable to vectorization.
 - Sky-cell / HEALPix partitioning of the catalog remains the second-line option if vectorization
   alone is insufficient at 8000+ indexed stars.
+
+## 2026-05-08: 40000 mag&le;8 Confirms ps=6 At The Catalog Density Ceiling
+
+Decision: 40000 indexed stars on HYG mag&le;8 with `--pyramid-size 6 --neighbor-bins 1
+--tolerance-arcsec 120` is the new operational ceiling for cold-start lost-in-space identification,
+and ps=6 is correctness-safe through 50% false detection rates at 16000 honest density. Do not
+fall back to ps=8 for high-false-rate workloads.
+
+Reasoning: the 40000 full sweep (false 0/4/8/12, 2 trials) recovered 64/64 true IDs with 0 wrong
+assignments at every false count, with worst-case query 94 s — under PLAN's 2-minute acceptance.
+The mag&le;8 catalog itself caps at 41487 stars, so 40000 is essentially the absolute density
+ceiling without re-converting HYG to mag&le;9 (~120k stars), which would push build time well past
+2 hours even with the vectorized path. Separately, the 16000 mag&le;8 high-false-rate stress
+(`--false-counts 16 24 32`, i.e. 33%/43%/50% false rate) returned 64/64 correct, 0 wrong at every
+setting with ~6 s query — query time is essentially flat in false rate because the pyramid only
+takes the first 6 observations and constraint is dominated by catalog density.
+
+Consequences:
+
+- The README headline result is now 40000 (mag&le;8) / 64 correct / 332 M pairs / 1016 MB `.npz` /
+  61-94 s query, replacing the prior 32000 entry.
+- `--pyramid-size 6` is the operational default for honest-density mag&le;8 work at all densities
+  from 16000 through 40000. ps=8 stays in the codebase as a regression baseline only.
+- Pushing past 40000 requires a deeper-magnitude catalog conversion (mag&le;9 ~ 120k stars) AND
+  an algorithmic candidate-density reduction (sky-cell partitioning is still the most plausible
+  next step). Both are deferred until a concrete need arises (e.g. real-camera mag-limit testing
+  shows we need stars below mag 8).
+- The 40000-star build needs `--skip-pkl` because the dict-of-tuples + pickle path peaks at ~30 GB
+  RAM for 332 M pairs. Documented separately in the next decision below.
+
+## 2026-05-08: Add `--skip-pkl` To `build_star_pair_index.py` For 40k+ Builds
+
+Decision: gate the dict-of-tuples + `pickle.dump` step in `build_star_pair_index.py` behind a new
+`--skip-pkl` flag, derive the `.npz` arrays directly from the sorted numpy buffers, and forward the
+flag from `benchmarks/run_hyg_pair_index_false_scaling.py`. Keep dual-write as the default for
+backwards compatibility with archived `.pkl` fixtures and the loader's `.pkl` fallback.
+
+Reasoning: the first 40000 sweep died with SIGKILL during `build_star_pair_index.py`. The vectorized
+pair-enumeration produces compact int64 numpy arrays (~8 GB at 332 M pairs), but the subsequent
+`index[bin_key] = list(zip(sorted_lhs.tolist(), sorted_rhs.tolist()))` materializes 332 M Python
+tuples of Python ints, which costs ~30 GB at peak — the OOM killer fires on a 62 GB box once the
+buffer cache and other processes are accounted for. The `.npz` writer downstream rebuilds the same
+arrays from the dict, so removing the dict step is purely a memory optimization with no functional
+effect. Bit-exact equivalence verified on a 500-star fixture: `bin_keys`, `bin_offsets`,
+`pair_endpoints`, `vectors`, and `magnitudes` all `np.array_equal=True` between `--skip-pkl` and
+the dual-write build.
+
+Consequences:
+
+- 40000 build runs in 277 s with bounded memory (sorted int64 buffers, ~7 GB peak).
+- `metadata.pkl_path` is `None` when `--skip-pkl` is set; downstream tooling that wants the index
+  size should stat the `.npz` instead. The benchmark switches to `index_path.with_suffix(".npz")`
+  for `index_size_mb` when `--skip-pkl` is on.
+- Loader (`identify_stars_with_pair_index.py`) needs no change: it already prefers `.npz` and falls
+  back to `.pkl` only when `.npz` is absent.
+- Future bigger builds (mag&le;9, sky-cell partitioned, etc.) should default to `--skip-pkl`.

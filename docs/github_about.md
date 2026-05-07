@@ -9,7 +9,7 @@ description fits the framing; the topic list is the recommended set in either ca
 
 ```
 Space-native localization OSS in C++20: star tracker attitude, lost-in-space star identification at
-HYG mag≤8 (32k indexed stars, 64/64 correct), lunar visual odometry on NASA POLAR, and terrain-relative
+HYG mag≤8 (40k indexed stars, 64/64 correct), lunar visual odometry on NASA POLAR, and terrain-relative
 navigation. Python prototypes alongside the C++ apps.
 ```
 
@@ -54,7 +54,7 @@ Recommended GitHub topics (max 20; GitHub normalizes to lowercase, hyphenated):
 
 ```bash
 gh repo edit <owner>/astro_localization \
-  --description "Space-native localization OSS in C++20: star tracker attitude, lost-in-space star identification at HYG mag≤8 (32k indexed stars, 64/64 correct), lunar visual odometry on NASA POLAR, and terrain-relative navigation. Python prototypes alongside the C++ apps." \
+  --description "Space-native localization OSS in C++20: star tracker attitude, lost-in-space star identification at HYG mag≤8 (40k indexed stars, 64/64 correct), lunar visual odometry on NASA POLAR, and terrain-relative navigation. Python prototypes alongside the C++ apps." \
   --add-topic space-robotics \
   --add-topic localization \
   --add-topic visual-odometry \
