@@ -18,7 +18,7 @@ Numbers below are the current best on the corresponding benchmark. Full per-iter
 | Star tracker attitude | 30 stars synthetic, 0.1 px noise | mean attitude error **0.00459 deg** |
 | Lost-in-space, idealized (HYG mag≤8, 40k indexed stars — catalog density ceiling) | 32 true + up to 12 false detections, 0.1 px noise, `--pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120 --skip-pkl` | **64/64 correct, 0 wrong**, query 61-94 s, build 277 s, .npz 1016 MB, 332 M pairs |
 | Lost-in-space, high-false-rate idealized (HYG mag≤8, 16k indexed stars) | 32 true + 16/24/32 false detections (33-50% false rate), ps=6 | **64/64 correct, 0 wrong** at every level, query ~6 s |
-| Lost-in-space, realistic camera effects (HYG mag≤8, 16k, ps=6, trials=6) | mag-weighted detection (limiting 7.0) + 50% near-real-star false detections, false=12 | 5/6 trials 32/32 correct; 1/6 trial fails (0/32, 4 wrong) — **~17% per-trial catastrophic-failure rate**. ps=8 does not mitigate. Algorithmic robustness work prioritized in PLAN |
+| Lost-in-space, realistic camera effects + pyramid restart (HYG mag≤8, 16k, ps=6, trials=6, restarts=3) | mag-weighted detection (limiting 7.0) + 50% near-real-star false detections, full sweep false 0/4/8/12 | **192/192 correct, 0 wrong** at every false count, query ~5 s. Pyramid restart recovers the prior ~17% catastrophic-failure rate to 0% within trials=6 |
 | Lunar VO (POLAR Traverse1, L 50 ms, monocular SIFT) | 11 frames, Sim(3) alignment | ATE RMSE **0.0186 m**, 11/11 frames OK |
 | Lunar VO (POLAR Traverse1, L 50 ms, rectified stereo + PnP) | 11 frames, SE(3) | ATE RMSE **0.0650 m**, path 10.18 m vs 9.98 m GT |
 

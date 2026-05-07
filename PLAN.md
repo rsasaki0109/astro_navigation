@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (realism flags added — found ~17% catastrophic-failure rate at 37.5% false detection under realistic camera effects; algorithmic robustness work is now the next priority)
+Last updated: 2026-05-08 (pyramid-restart fix recovers 192/192 correct under realistic camera effects — realism robustness gap closed within trials=6 statistical power)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -698,49 +698,51 @@ done — see results in `docs/experiments.md` (entries dated 2026-05-08) and the
 discussion in `docs/decisions.md`. Operational ceiling is now 40000 indexed stars on HYG mag&le;8,
 which is essentially the absolute density limit (mag&le;8 catalog caps at 41487 stars).
 
-Realism flags landed (`--limiting-magnitude`, `--mag-softness` on the catalog observation
-generator; `--false-near-fraction`, `--false-near-sigma-px` on `drop_star_ids.py`). A 16000
-mag&le;8 ps=6 trials=6 sweep with realism enabled (`limiting=7.0 softness=0.5 near-frac=0.5
-near-sigma=20`) found a ~17% per-trial catastrophic-failure rate at false=12 (37.5% false rate);
-ps=8 mitigation does not help. See `docs/experiments.md` and `docs/decisions.md` for the data and
-the failure analysis.
+Pyramid-restart landed (`--pyramid-restarts`, `--confidence-fraction`,
+`--pyramid-restart-seed` on `identify_stars_with_pair_index.py`; flags forwarded by
+`run_hyg_pair_index_false_scaling.py`). A 16000 mag&le;8 ps=6 trials=6 sweep under realistic
+camera effects (`limiting=7.0 softness=0.5 near-frac=0.5 near-sigma=20`) with `--pyramid-restarts
+3 --confidence-fraction 0.5` recovered 192/192 correct, 0 wrong at every false count (0/4/8/12).
+The previously-failing trial at false=12 (which had been 0/32 under no-restart) used 2 attempts
+and won on the first restart. Costs: only the failing trial paid the ~2x cand_gen tax; average
+query latency at false=12 was 5.21 s vs 5.54 s without restart.
 
 The next handoff should pick from the following, in roughly decreasing value:
 
-1. **Algorithmic robustness against confusion-attitude lock-in (highest priority — this is now the
-   main correctness bottleneck under realism).** The pyramid identifier accepts the first
-   verified hypothesis without checking whether the predicted vs observed star count is
-   consistent. Concrete options:
-   - Keep top-K candidate attitudes by verified-match-count, run full verification on each, pick
-     the highest-match attitude (reject low-confidence ties).
-   - Track expected vs predicted observation counts under the recovered attitude and a
-     limiting-magnitude prior; reject attitudes that predict far more or far fewer matches than
-     observed.
-   - Re-pyramid with a different observation subset when verified-count falls below a threshold.
-
-2. **Push past the catalog density ceiling.** Convert HYG mag&le;9 (~120k stars), filter to a
+1. **Push past the catalog density ceiling.** Convert HYG mag&le;9 (~120k stars), filter to a
    resolved subset, and benchmark. Pair-count growth from 332M (40k) to ~3G (80k) plus
    `np.argsort` cost makes peak memory the next risk even with `--skip-pkl`. Worth doing only if
-   real-camera mag-limit testing shows mag&le;8 is too restrictive (and the realism work above
-   suggests the bottleneck is currently algorithmic, not catalog depth).
+   real-camera mag-limit testing shows mag&le;8 is too restrictive.
 
-3. **Sky-cell / HEALPix partitioning of the pair index.** Currently deferred — at 40000 mag&le;8
+2. **Sky-cell / HEALPix partitioning of the pair index.** Currently deferred — at 40000 mag&le;8
    we are still at ~70 s worst-case query, comfortable for cold-start LIS. Becomes important if
-   step 2 happens or if a sub-10 s online identifier is needed.
+   step 1 happens or if a sub-10 s online identifier is needed.
 
-4. **Begin the C++ port of the pair-index identifier.** The Python prototype is fixed enough to
-   port, but step 1 should land first because the C++ port should not freeze a known-broken
-   matcher.
+3. **Begin the C++ port of the pair-index identifier.** The Python prototype is now realism-
+   validated. Pick `identify_stars_with_pair_index.py` (the hot path) first, target zero-copy
+   `.npz` loading via Eigen/xtensor, keep the Python build script as the source of truth for
+   `.npz` index format, and port the restart loop alongside the pyramid+verify path.
+
+4. **Tighten realism trials statistical power.** Re-run the realism + restart sweep with trials=24
+   to bound the residual catastrophic-failure rate from "&lt;17%" (no-restart baseline) to
+   "&lt;~5%" (95% CI under 0/24 observed failures). Cheap (~10 min run) and would harden the
+   headline number.
 
 5. **More realism axes.** Centroid noise scaled by intensity, optical distortion, catalog proper
-   motion, image-edge / hot-pixel false-positive distributions. Lower priority than step 1 since
-   the matching algorithm itself is the current weak link.
+   motion, image-edge / hot-pixel false-positive distributions, magnitude-aware false-positive
+   weighting. Each axis is a candidate for a fresh failure-mode discovery.
 
-6. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
+6. **Top-K verified-hypothesis ranking** (deeper algorithmic hardening). Restart by itself is a
+   pragmatic fix; a more principled solution keeps top-K candidate attitudes and explicitly
+   reasons about predicted-vs-observed match counts under a limiting-magnitude prior. Implement
+   if step 4 turns up a residual failure rate.
+
+7. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
    OK even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
 
-For the immediate `tugi` cycle, step 1 is the right continuation: it's the only path to making
-the realism numbers match the idealized numbers.
+For the immediate `tugi` cycle, step 4 (statistical-power tightening) is the smallest unit of
+forward progress and locks in the just-shipped restart fix. Step 1 (mag&le;9) is the natural
+density continuation; step 3 (C++ port) is the deployment-direction continuation.
 
 ## Current Best Technical Summary
 

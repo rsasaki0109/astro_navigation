@@ -9,6 +9,7 @@ import itertools
 import json
 import math
 import pickle
+import random
 import time
 from pathlib import Path
 
@@ -231,6 +232,28 @@ def main() -> int:
         help="Pyramid mode: only build observation triangles from the first N observations. "
         "0 disables pyramid mode and uses all observations.",
     )
+    parser.add_argument(
+        "--pyramid-restarts",
+        type=int,
+        default=0,
+        help="Maximum number of additional pyramid attempts with shuffled observation pools when "
+        "the assigned-observation count from the first attempt falls below "
+        "--confidence-fraction * total observations. 0 disables retry (current behavior).",
+    )
+    parser.add_argument(
+        "--confidence-fraction",
+        type=float,
+        default=0.5,
+        help="Restart-pyramid threshold: if assigned/observations is below this fraction after an "
+        "attempt, retry with a new random subset (up to --pyramid-restarts times). The attempt "
+        "with the most assignments wins regardless.",
+    )
+    parser.add_argument(
+        "--pyramid-restart-seed",
+        type=int,
+        default=0,
+        help="Seed for the observation-permutation RNG used between pyramid restarts.",
+    )
     args = parser.parse_args()
 
     star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, index_format = load_pair_index(args.index)
@@ -239,52 +262,68 @@ def main() -> int:
     magnitude_prior_rad = math.radians(args.magnitude_prior_arcsec / 3600.0)
 
     observations = load_observations(args.observations, args.fx, args.fy, args.cx, args.cy)
-    if args.pyramid_size > 0:
-        triangle_pool_size = min(args.pyramid_size, len(observations))
-    else:
-        triangle_pool_size = len(observations)
-    observation_triangles = select_observation_triangles(triangle_pool_size, args.max_observation_triangles)
 
     triangle_matches = 0
     candidate_hypotheses = 0
     verified_hypotheses = 0
+    pruning_seconds = 0.0
+    candidate_generation_seconds = 0.0
+    verification_seconds = 0.0
+    observation_triangles_evaluated = 0
+
     best_assignments: dict[int, int] = {}
     best_rms_error = math.inf
     best_mean_score = math.inf
-    hypotheses: list[tuple[float, tuple[int, int, int], tuple[int, int, int]]] = []
+    best_attempt_index = -1
 
-    candidate_generation_seconds = 0.0
-    verification_seconds = 0.0
+    permutation = list(range(len(observations)))
+    restart_rng = random.Random(args.pyramid_restart_seed)
+    confidence_target = args.confidence_fraction * len(observations)
+    attempts_taken = 0
 
-    for obs_indices in observation_triangles:
-        gen_start = time.perf_counter()
-        candidates = candidate_mappings(
-            observations,
-            catalog_vectors,
-            catalog_magnitudes,
-            index,
-            bin_size_rad,
-            args.neighbor_bins,
-            tolerance_rad,
-            magnitude_prior_rad,
-            obs_indices,
-        )
-        candidate_hypotheses += len(candidates)
-        candidates.sort(key=lambda item: item[0])
-        if args.max_candidates_per_observation_triangle > 0:
-            candidates = candidates[: args.max_candidates_per_observation_triangle]
-        candidate_generation_seconds += time.perf_counter() - gen_start
-        for candidate_score, cat_mapping in candidates:
-            hypotheses.append((candidate_score, obs_indices, cat_mapping))
+    for attempt in range(args.pyramid_restarts + 1):
+        attempts_taken = attempt + 1
+        if args.pyramid_size > 0:
+            pool = permutation[: min(args.pyramid_size, len(permutation))]
+        else:
+            pool = list(permutation)
+        base_triangles = select_observation_triangles(len(pool), args.max_observation_triangles)
+        observation_triangles = [(pool[a], pool[b], pool[c]) for (a, b, c) in base_triangles]
+        observation_triangles_evaluated += len(observation_triangles)
 
-    pruning_start = time.perf_counter()
-    triangle_matches = len(hypotheses)
-    hypotheses.sort(key=lambda item: item[0])
-    if args.max_verified_hypotheses > 0:
-        hypotheses = hypotheses[: args.max_verified_hypotheses]
-    pruning_seconds = time.perf_counter() - pruning_start
+        hypotheses: list[tuple[float, tuple[int, int, int], tuple[int, int, int]]] = []
+        for obs_indices in observation_triangles:
+            gen_start = time.perf_counter()
+            candidates = candidate_mappings(
+                observations,
+                catalog_vectors,
+                catalog_magnitudes,
+                index,
+                bin_size_rad,
+                args.neighbor_bins,
+                tolerance_rad,
+                magnitude_prior_rad,
+                obs_indices,
+            )
+            candidate_hypotheses += len(candidates)
+            candidates.sort(key=lambda item: item[0])
+            if args.max_candidates_per_observation_triangle > 0:
+                candidates = candidates[: args.max_candidates_per_observation_triangle]
+            candidate_generation_seconds += time.perf_counter() - gen_start
+            for candidate_score, cat_mapping in candidates:
+                hypotheses.append((candidate_score, obs_indices, cat_mapping))
 
-    for _candidate_score, obs_indices, cat_mapping in hypotheses:
+        pruning_start = time.perf_counter()
+        triangle_matches += len(hypotheses)
+        hypotheses.sort(key=lambda item: item[0])
+        if args.max_verified_hypotheses > 0:
+            hypotheses = hypotheses[: args.max_verified_hypotheses]
+        pruning_seconds += time.perf_counter() - pruning_start
+
+        attempt_assignments: dict[int, int] = {}
+        attempt_rms_error = math.inf
+        attempt_mean_score = math.inf
+        for _candidate_score, obs_indices, cat_mapping in hypotheses:
             verify_start = time.perf_counter()
             rotation_camera_inertial = estimate_rotation_camera_inertial(
                 observations,
@@ -303,18 +342,38 @@ def main() -> int:
             if candidate_assignments:
                 verified_hypotheses += 1
             if (
-                len(candidate_assignments) > len(best_assignments)
+                len(candidate_assignments) > len(attempt_assignments)
                 or (
-                    len(candidate_assignments) == len(best_assignments)
+                    len(candidate_assignments) == len(attempt_assignments)
                     and (
-                        mean_score < best_mean_score
-                        or (math.isclose(mean_score, best_mean_score) and rms_error < best_rms_error)
+                        mean_score < attempt_mean_score
+                        or (math.isclose(mean_score, attempt_mean_score) and rms_error < attempt_rms_error)
                     )
                 )
             ):
-                best_assignments = candidate_assignments
-                best_rms_error = rms_error
-                best_mean_score = mean_score
+                attempt_assignments = candidate_assignments
+                attempt_rms_error = rms_error
+                attempt_mean_score = mean_score
+
+        if (
+            len(attempt_assignments) > len(best_assignments)
+            or (
+                len(attempt_assignments) == len(best_assignments)
+                and (
+                    attempt_mean_score < best_mean_score
+                    or (math.isclose(attempt_mean_score, best_mean_score) and attempt_rms_error < best_rms_error)
+                )
+            )
+        ):
+            best_assignments = attempt_assignments
+            best_rms_error = attempt_rms_error
+            best_mean_score = attempt_mean_score
+            best_attempt_index = attempt
+
+        if len(best_assignments) >= confidence_target:
+            break
+
+        restart_rng.shuffle(permutation)
 
     assignments = {obs_index: star_ids[cat_index] for obs_index, cat_index in best_assignments.items()}
 
@@ -329,9 +388,12 @@ def main() -> int:
         "assigned_observations": len(assignments),
         "triangle_matches": triangle_matches,
         "observations": len(observations),
-        "observation_triangles": len(observation_triangles),
+        "observation_triangles_evaluated": observation_triangles_evaluated,
         "pyramid_size": args.pyramid_size,
-        "triangle_pool_size": triangle_pool_size,
+        "pyramid_restarts": args.pyramid_restarts,
+        "confidence_fraction": args.confidence_fraction,
+        "attempts_taken": attempts_taken,
+        "winning_attempt_index": best_attempt_index,
         "index_stars": len(star_ids),
         "index_pairs": sum(len(pairs) for pairs in index.values()),
         "candidate_hypotheses": candidate_hypotheses,
