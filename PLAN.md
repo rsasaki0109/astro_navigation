@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (pyramid-restart fix recovers 192/192 correct under realistic camera effects — realism robustness gap closed within trials=6 statistical power)
+Last updated: 2026-05-08 (realism + restart trials=24: 768/768 correct, residual failure &lt;3.1% at 95% CI; magnitude-scaled noise added as third realism axis without correctness regression)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -700,12 +700,17 @@ which is essentially the absolute density limit (mag&le;8 catalog caps at 41487 
 
 Pyramid-restart landed (`--pyramid-restarts`, `--confidence-fraction`,
 `--pyramid-restart-seed` on `identify_stars_with_pair_index.py`; flags forwarded by
-`run_hyg_pair_index_false_scaling.py`). A 16000 mag&le;8 ps=6 trials=6 sweep under realistic
-camera effects (`limiting=7.0 softness=0.5 near-frac=0.5 near-sigma=20`) with `--pyramid-restarts
-3 --confidence-fraction 0.5` recovered 192/192 correct, 0 wrong at every false count (0/4/8/12).
-The previously-failing trial at false=12 (which had been 0/32 under no-restart) used 2 attempts
-and won on the first restart. Costs: only the failing trial paid the ~2x cand_gen tax; average
-query latency at false=12 was 5.21 s vs 5.54 s without restart.
+`run_hyg_pair_index_false_scaling.py`). At trials=24, the full realism+restart config
+(`limiting=7.0 softness=0.5 near-frac=0.5 near-sigma=20 restarts=3 conf=0.5`) achieves 768/768
+correct, 0 wrong across false 0/4/8/12 — rule-of-three upper bound on residual catastrophic
+failure rate is **`<3.1%` at 95% CI** vs the no-restart baseline of `<17%`. 86/96 trials
+succeeded on attempt 0; 10/96 needed at least one restart.
+
+A third realism axis — magnitude-dependent centroid noise (`--noise-mag-reference`,
+`--noise-mag-cap-px`) — was added: per-star sigma scales as `noise_px * 10^(0.4 * (mag - ref))`.
+Stacking this on top of the existing realism+restart config still yields 192/192 correct in a
+trials=6 sweep; cand_gen rises ~1.7x at false=12 because faint-star noise widens the effective
+tolerance window.
 
 The next handoff should pick from the following, in roughly decreasing value:
 
@@ -723,26 +728,23 @@ The next handoff should pick from the following, in roughly decreasing value:
    `.npz` loading via Eigen/xtensor, keep the Python build script as the source of truth for
    `.npz` index format, and port the restart loop alongside the pyramid+verify path.
 
-4. **Tighten realism trials statistical power.** Re-run the realism + restart sweep with trials=24
-   to bound the residual catastrophic-failure rate from "&lt;17%" (no-restart baseline) to
-   "&lt;~5%" (95% CI under 0/24 observed failures). Cheap (~10 min run) and would harden the
-   headline number.
+4. **More realism axes.** Done so far: probabilistic mag-weighted detection, near-real-star
+   false positives, magnitude-dependent centroid noise. Open: optical distortion (radial /
+   Brown-Conrady), catalog proper motion / aberration, image-edge / hot-pixel false-positive
+   distributions, magnitude-aware false-positive intensity (false detections cluster brighter
+   near read-noise spikes than uniformly).
 
-5. **More realism axes.** Centroid noise scaled by intensity, optical distortion, catalog proper
-   motion, image-edge / hot-pixel false-positive distributions, magnitude-aware false-positive
-   weighting. Each axis is a candidate for a fresh failure-mode discovery.
+5. **Top-K verified-hypothesis ranking** (deeper algorithmic hardening). Restart is a pragmatic
+   fix; a more principled solution keeps top-K candidate attitudes and explicitly reasons about
+   predicted-vs-observed match counts under a limiting-magnitude prior. Implement if a future
+   realism axis turns up a non-restart-fixable failure mode.
 
-6. **Top-K verified-hypothesis ranking** (deeper algorithmic hardening). Restart by itself is a
-   pragmatic fix; a more principled solution keeps top-K candidate attitudes and explicitly
-   reasons about predicted-vs-observed match counts under a limiting-magnitude prior. Implement
-   if step 4 turns up a residual failure rate.
-
-7. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
+6. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
    OK even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
 
-For the immediate `tugi` cycle, step 4 (statistical-power tightening) is the smallest unit of
-forward progress and locks in the just-shipped restart fix. Step 1 (mag&le;9) is the natural
-density continuation; step 3 (C++ port) is the deployment-direction continuation.
+For the immediate `tugi` cycle, step 1 (mag&le;9) is the natural density continuation;
+step 3 (C++ port) is the deployment-direction continuation. Step 4 stays attractive because each
+axis is cheap (~30 min) and surfaces fresh failure-mode data.
 
 ## Current Best Technical Summary
 

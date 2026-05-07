@@ -82,6 +82,19 @@ def main() -> int:
         default=0.5,
         help="Forward to identify_stars_with_pair_index.py: restart-pyramid threshold.",
     )
+    parser.add_argument(
+        "--noise-mag-reference",
+        type=float,
+        default=None,
+        help="Forward to generate: per-star centroid noise = noise_px * 10^(0.4*(mag - ref)). "
+        "Default disabled (uniform noise).",
+    )
+    parser.add_argument(
+        "--noise-mag-cap-px",
+        type=float,
+        default=10.0,
+        help="Forward to generate: cap on per-star noise sigma when --noise-mag-reference is set.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -137,6 +150,8 @@ def main() -> int:
                 max_attempts=args.max_generation_attempts,
                 limiting_magnitude=args.limiting_magnitude,
                 mag_softness=args.mag_softness,
+                noise_mag_reference=args.noise_mag_reference,
+                noise_mag_cap_px=args.noise_mag_cap_px,
             )
             drop_command = [
                 sys.executable,
