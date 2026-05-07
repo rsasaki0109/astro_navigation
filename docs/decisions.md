@@ -551,3 +551,39 @@ Consequences:
 - Loader (`identify_stars_with_pair_index.py`) needs no change: it already prefers `.npz` and falls
   back to `.pkl` only when `.npz` is absent.
 - Future bigger builds (mag&le;9, sky-cell partitioned, etc.) should default to `--skip-pkl`.
+
+## 2026-05-08: Realism Reveals A ~17% Per-Trial Catastrophic Failure At High False Rates
+
+Decision: the `64/64 correct, 0 wrong` numbers on idealized synthetic data were too optimistic at
+high false detection rates. Under a realistic camera-effects configuration
+(`--limiting-magnitude 7.0 --mag-softness 0.5 --false-near-fraction 0.5 --false-near-sigma-px 20.0`)
+at 16000 mag&le;8 ps=6, the pyramid identifier hits a roughly 17% per-trial catastrophic-failure
+rate at 37.5% false detection rate. The failing trial assigns 0 observations correctly and produces
+4-6 confidently-wrong assignments. Increasing `--pyramid-size` from 6 to 8 does not help — the
+larger pyramid produces 3.2x more candidate hypotheses but locks onto the same confusion attitude.
+
+Reasoning: trials=6 sweeps with the realism config show 5/6 success at false 0/4/8/12 except false=12
+where 5/6 trials succeed (192/192 → 160/192). Two ablations confirm the failure is not isolated to
+one axis: mag-only realism fails at false=4 in trials=2 runs, false-near-only fails at false=12,
+combined fails at false=12. The pattern is fixture-driven — random attitudes occasionally land near
+catalog regions that admit more than one self-consistent triangle pattern under the algorithm's
+matching tolerance, and the pyramid identifier locks onto the wrong one. The algorithm has no
+mechanism to detect "I picked the wrong attitude": it returns the first verified hypothesis without
+checking whether the predicted vs observed star count is consistent under the limiting magnitude.
+
+Consequences:
+
+- Update README and PLAN to caveat the headline 40000 / 64-correct number as idealized.
+- Future LIS work should add multi-hypothesis verification or attitude-rejection signals before
+  claiming flight-grade robustness. Concrete options:
+  - Keep top-K candidate attitudes by verified-match-count, run full verification on each, pick
+    the one with the most matches (and reject ties / low confidence).
+  - Track expected vs predicted observation counts under the recovered attitude and the limiting
+    magnitude prior; reject attitudes that predict far more or far fewer matches than observed.
+  - Re-pyramid with a different observation subset when verification falls below a threshold
+    rather than accepting the first match.
+- The realism flags themselves (`--limiting-magnitude`, `--false-near-fraction`, etc.) stay as
+  optional flags. Default behavior is unchanged so prior fixtures and `count_correct` semantics
+  continue to work.
+- Pure idealized correctness benchmarks (Gaussian-noise-only synthetic) remain valid as
+  algorithmic regression baselines but no longer count as the headline robustness statement.

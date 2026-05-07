@@ -19,6 +19,20 @@ def main() -> int:
     parser.add_argument("--width", type=float, default=1024.0)
     parser.add_argument("--height", type=float, default=1024.0)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--false-near-fraction",
+        type=float,
+        default=0.0,
+        help="Fraction of false detections placed near a real observation rather than uniformly. "
+        "0.0 (default) preserves the uniform-random behavior; 1.0 puts every false detection within "
+        "--false-near-sigma-px of a randomly chosen real observation.",
+    )
+    parser.add_argument(
+        "--false-near-sigma-px",
+        type=float,
+        default=20.0,
+        help="Gaussian std-dev (in pixels) used to offset near-star false detections.",
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -28,8 +42,18 @@ def main() -> int:
     if args.drop_count > 0:
         drop = set(rng.sample(range(len(rows)), k=min(args.drop_count, len(rows))))
         rows = [row for index, row in enumerate(rows) if index not in drop]
+    real_observations = [(float(row["u"]), float(row["v"])) for row in rows]
     for _ in range(args.false_count):
-        rows.append({"u": f"{rng.uniform(0.0, args.width):.6f}", "v": f"{rng.uniform(0.0, args.height):.6f}"})
+        if real_observations and rng.random() < args.false_near_fraction:
+            anchor_u, anchor_v = rng.choice(real_observations)
+            u = anchor_u + rng.gauss(0.0, args.false_near_sigma_px)
+            v = anchor_v + rng.gauss(0.0, args.false_near_sigma_px)
+            u = min(max(u, 0.0), args.width)
+            v = min(max(v, 0.0), args.height)
+        else:
+            u = rng.uniform(0.0, args.width)
+            v = rng.uniform(0.0, args.height)
+        rows.append({"u": f"{u:.6f}", "v": f"{v:.6f}"})
     rng.shuffle(rows)
 
     with args.output.open("w", newline="", encoding="utf-8") as out:

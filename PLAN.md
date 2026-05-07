@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (post 40000 mag&le;8 ps=6 full sweep + 16000 ps=6 high-false-rate stress — operational ceiling at the catalog density limit)
+Last updated: 2026-05-08 (realism flags added — found ~17% catastrophic-failure rate at 37.5% false detection under realistic camera effects; algorithmic robustness work is now the next priority)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -698,35 +698,49 @@ done — see results in `docs/experiments.md` (entries dated 2026-05-08) and the
 discussion in `docs/decisions.md`. Operational ceiling is now 40000 indexed stars on HYG mag&le;8,
 which is essentially the absolute density limit (mag&le;8 catalog caps at 41487 stars).
 
+Realism flags landed (`--limiting-magnitude`, `--mag-softness` on the catalog observation
+generator; `--false-near-fraction`, `--false-near-sigma-px` on `drop_star_ids.py`). A 16000
+mag&le;8 ps=6 trials=6 sweep with realism enabled (`limiting=7.0 softness=0.5 near-frac=0.5
+near-sigma=20`) found a ~17% per-trial catastrophic-failure rate at false=12 (37.5% false rate);
+ps=8 mitigation does not help. See `docs/experiments.md` and `docs/decisions.md` for the data and
+the failure analysis.
+
 The next handoff should pick from the following, in roughly decreasing value:
 
-1. **Push past the catalog density ceiling.** Convert HYG mag&le;9 (~120k stars), filter to a
-   resolved subset, and benchmark. Build time at 80k+ honest density is the open question:
-   vectorized 32k took 430 s, 40k took 277 s, but pair-count growth from 332M (40k) to ~3 G
-   (80k) plus np.argsort cost makes peak memory the next risk even with `--skip-pkl`. Worth doing
-   only if real-camera mag-limit testing shows mag&le;8 is too restrictive.
+1. **Algorithmic robustness against confusion-attitude lock-in (highest priority — this is now the
+   main correctness bottleneck under realism).** The pyramid identifier accepts the first
+   verified hypothesis without checking whether the predicted vs observed star count is
+   consistent. Concrete options:
+   - Keep top-K candidate attitudes by verified-match-count, run full verification on each, pick
+     the highest-match attitude (reject low-confidence ties).
+   - Track expected vs predicted observation counts under the recovered attitude and a
+     limiting-magnitude prior; reject attitudes that predict far more or far fewer matches than
+     observed.
+   - Re-pyramid with a different observation subset when verified-count falls below a threshold.
 
-2. **Sky-cell / HEALPix partitioning of the pair index.** Currently deferred — at 40000 mag&le;8
-   we are still at ~70 s worst-case query, comfortable for cold-start LIS. But it is the only
-   plausible algorithmic step for sub-10 s queries at full HYG density and is also the precursor
-   to a streaming online identifier. Implement after step 1 if step 1's query latency is too high.
+2. **Push past the catalog density ceiling.** Convert HYG mag&le;9 (~120k stars), filter to a
+   resolved subset, and benchmark. Pair-count growth from 332M (40k) to ~3G (80k) plus
+   `np.argsort` cost makes peak memory the next risk even with `--skip-pkl`. Worth doing only if
+   real-camera mag-limit testing shows mag&le;8 is too restrictive (and the realism work above
+   suggests the bottleneck is currently algorithmic, not catalog depth).
 
-3. **Begin the C++ port of the pair-index identifier.** The Python prototype is fixed enough to
-   port. Pick `identify_stars_with_pair_index.py` (the hot path) first, target zero-copy `.npz`
-   loading via Eigen/xtensor, and keep the Python build script as the source of truth for
-   `.npz` index format. Leave the synthetic generators and the benchmark drivers in Python.
+3. **Sky-cell / HEALPix partitioning of the pair index.** Currently deferred — at 40000 mag&le;8
+   we are still at ~70 s worst-case query, comfortable for cold-start LIS. Becomes important if
+   step 2 happens or if a sub-10 s online identifier is needed.
 
-4. **Realistic star camera effects.** Synthetic observations are still clean geometric
-   projections + Gaussian pixel noise. Catalog-magnitude-weighted star selection, biased false
-   positives near real stars, and centroid noise scaled by intensity are the highest-value
-   additions before claiming the prototype is camera-realistic. See section 6 below.
+4. **Begin the C++ port of the pair-index identifier.** The Python prototype is fixed enough to
+   port, but step 1 should land first because the C++ port should not freeze a known-broken
+   matcher.
 
-5. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames OK
-   even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
+5. **More realism axes.** Centroid noise scaled by intensity, optical distortion, catalog proper
+   motion, image-edge / hot-pixel false-positive distributions. Lower priority than step 1 since
+   the matching algorithm itself is the current weak link.
 
-For the immediate `tugi` cycle, step 1 (mag&le;9 conversion + benchmark) is the most direct
-continuation of the lost-in-space scaling thread; step 4 is the better choice if the goal shifts
-toward pre-camera-port realism. Steps 2 and 3 are larger and want explicit user direction.
+6. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
+   OK even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
+
+For the immediate `tugi` cycle, step 1 is the right continuation: it's the only path to making
+the realism numbers match the idealized numbers.
 
 ## Current Best Technical Summary
 

@@ -44,6 +44,31 @@ def main() -> int:
         help="Skip the pickle dict-of-tuples emission in the build step. Required for very "
         "large indices (40000+ stars) where the pickle path exhausts memory.",
     )
+    parser.add_argument(
+        "--limiting-magnitude",
+        type=float,
+        default=None,
+        help="Forward to generate_star_tracker_observations_from_catalog.py for probabilistic "
+        "magnitude-aware star detection. Default disabled (top-3N + uniform pick).",
+    )
+    parser.add_argument(
+        "--mag-softness",
+        type=float,
+        default=0.5,
+        help="Sigmoid width for --limiting-magnitude.",
+    )
+    parser.add_argument(
+        "--false-near-fraction",
+        type=float,
+        default=0.0,
+        help="Forward to drop_star_ids.py: fraction of false detections placed near a real star.",
+    )
+    parser.add_argument(
+        "--false-near-sigma-px",
+        type=float,
+        default=20.0,
+        help="Forward to drop_star_ids.py: Gaussian std-dev for near-star false detections.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -97,23 +122,28 @@ def main() -> int:
                 noise_px=args.noise_px,
                 seed=14000 + false_count * 100 + trial,
                 max_attempts=args.max_generation_attempts,
+                limiting_magnitude=args.limiting_magnitude,
+                mag_softness=args.mag_softness,
             )
-            run(
-                [
-                    sys.executable,
-                    "scripts/drop_star_ids.py",
-                    "--input",
-                    str(case_dir / "observations.csv"),
-                    "--output",
-                    str(case_dir / "observations_unlabeled.csv"),
-                    "--truth-output",
-                    str(case_dir / "observations_unlabeled_truth.csv"),
-                    "--false-count",
-                    str(false_count),
-                    "--seed",
-                    str(15000 + trial),
-                ]
-            )
+            drop_command = [
+                sys.executable,
+                "scripts/drop_star_ids.py",
+                "--input",
+                str(case_dir / "observations.csv"),
+                "--output",
+                str(case_dir / "observations_unlabeled.csv"),
+                "--truth-output",
+                str(case_dir / "observations_unlabeled_truth.csv"),
+                "--false-count",
+                str(false_count),
+                "--seed",
+                str(15000 + trial),
+                "--false-near-fraction",
+                f"{args.false_near_fraction:.6f}",
+                "--false-near-sigma-px",
+                f"{args.false_near_sigma_px:.6f}",
+            ]
+            run(drop_command)
             identify_command = [
                 sys.executable,
                 "scripts/identify_stars_with_pair_index.py",
