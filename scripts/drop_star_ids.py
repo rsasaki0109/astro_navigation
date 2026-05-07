@@ -33,6 +33,35 @@ def main() -> int:
         default=20.0,
         help="Gaussian std-dev (in pixels) used to offset near-star false detections.",
     )
+    parser.add_argument(
+        "--hot-pixel-count",
+        type=int,
+        default=8,
+        help="Number of fixed image-coordinate 'hot pixel' positions sampled when "
+        "--hot-pixel-fraction > 0. Hot pixel layout is deterministic given --hot-pixel-seed.",
+    )
+    parser.add_argument(
+        "--hot-pixel-seed",
+        type=int,
+        default=99,
+        help="RNG seed for sampling hot pixel positions; kept separate from --seed so the same "
+        "hot-pixel layout can be reused across fixtures.",
+    )
+    parser.add_argument(
+        "--hot-pixel-fraction",
+        type=float,
+        default=0.0,
+        help="Fraction of false detections placed at a hot pixel position rather than uniform or "
+        "near-star. Evaluated AFTER --false-near-fraction; the three modes partition the false "
+        "detection budget as: hot, then near-real (of the remainder), then uniform random.",
+    )
+    parser.add_argument(
+        "--hot-pixel-sigma-px",
+        type=float,
+        default=1.0,
+        help="Gaussian std-dev (in pixels) applied around each hot pixel position. Default 1.0 "
+        "models hot pixels with a tight centroid uncertainty.",
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -43,16 +72,29 @@ def main() -> int:
         drop = set(rng.sample(range(len(rows)), k=min(args.drop_count, len(rows))))
         rows = [row for index, row in enumerate(rows) if index not in drop]
     real_observations = [(float(row["u"]), float(row["v"])) for row in rows]
+    hot_pixel_rng = random.Random(args.hot_pixel_seed)
+    hot_pixels = [
+        (hot_pixel_rng.uniform(0.0, args.width), hot_pixel_rng.uniform(0.0, args.height))
+        for _ in range(max(args.hot_pixel_count, 1))
+    ]
     for _ in range(args.false_count):
-        if real_observations and rng.random() < args.false_near_fraction:
+        roll = rng.random()
+        if args.hot_pixel_fraction > 0.0 and roll < args.hot_pixel_fraction:
+            hu, hv = rng.choice(hot_pixels)
+            u = hu + rng.gauss(0.0, args.hot_pixel_sigma_px)
+            v = hv + rng.gauss(0.0, args.hot_pixel_sigma_px)
+        elif real_observations and (
+            args.false_near_fraction > 0.0
+            and roll < args.hot_pixel_fraction + (1.0 - args.hot_pixel_fraction) * args.false_near_fraction
+        ):
             anchor_u, anchor_v = rng.choice(real_observations)
             u = anchor_u + rng.gauss(0.0, args.false_near_sigma_px)
             v = anchor_v + rng.gauss(0.0, args.false_near_sigma_px)
-            u = min(max(u, 0.0), args.width)
-            v = min(max(v, 0.0), args.height)
         else:
             u = rng.uniform(0.0, args.width)
             v = rng.uniform(0.0, args.height)
+        u = min(max(u, 0.0), args.width)
+        v = min(max(v, 0.0), args.height)
         rows.append({"u": f"{u:.6f}", "v": f"{v:.6f}"})
     rng.shuffle(rows)
 

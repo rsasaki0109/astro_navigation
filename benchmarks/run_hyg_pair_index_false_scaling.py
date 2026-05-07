@@ -102,6 +102,25 @@ def main() -> int:
         help="Forward to generate: drift catalog positions by N years of pmra/pmdec before "
         "projecting. Tests stale-catalog tolerance. 0 disables.",
     )
+    parser.add_argument(
+        "--hot-pixel-count",
+        type=int,
+        default=8,
+        help="Forward to drop_star_ids.py: number of fixed hot-pixel positions in the image.",
+    )
+    parser.add_argument(
+        "--hot-pixel-fraction",
+        type=float,
+        default=0.0,
+        help="Forward to drop_star_ids.py: fraction of false detections placed at hot pixels. "
+        "Default 0 disables.",
+    )
+    parser.add_argument(
+        "--hot-pixel-sigma-px",
+        type=float,
+        default=1.0,
+        help="Forward to drop_star_ids.py: Gaussian std-dev around hot pixel positions.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -178,6 +197,12 @@ def main() -> int:
                 f"{args.false_near_fraction:.6f}",
                 "--false-near-sigma-px",
                 f"{args.false_near_sigma_px:.6f}",
+                "--hot-pixel-count",
+                str(args.hot_pixel_count),
+                "--hot-pixel-fraction",
+                f"{args.hot_pixel_fraction:.6f}",
+                "--hot-pixel-sigma-px",
+                f"{args.hot_pixel_sigma_px:.6f}",
             ]
             run(drop_command)
             identify_command = [
