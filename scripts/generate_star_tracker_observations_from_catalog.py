@@ -56,16 +56,47 @@ def main() -> int:
         default=10.0,
         help="Upper cap on per-star centroid noise sigma when --noise-mag-reference is active.",
     )
+    parser.add_argument(
+        "--apply-proper-motion-years",
+        type=float,
+        default=0.0,
+        help="If non-zero, drift each catalog direction by `pmra_mas_yr * years` in RA and "
+        "`pmdec_mas_yr * years` in Dec before projecting to the camera. Tests catalog freshness.",
+    )
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
     rotation_camera_inertial = rotation_from_euler(args.yaw_deg, args.pitch_deg, args.roll_deg)
     candidates: list[tuple[str, np.ndarray, float, float, float]] = []
+    pm_active = args.apply_proper_motion_years != 0.0
+    mas_to_rad = math.radians(1.0 / 3600.0 / 1000.0)
     with args.catalog.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
-            direction_inertial = normalize(
+            direction_catalog = normalize(
                 np.array([float(row["x"]), float(row["y"]), float(row["z"])], dtype=float)
             )
+            if pm_active:
+                # Drift the catalog direction by N years of proper motion. Convert (ra, dec) deltas
+                # in milliarcseconds-per-year * years into a small rotation in the local tangent
+                # plane. For our drift magnitudes (~mas to ~arcsec), the linearization is fine.
+                try:
+                    pmra = float(row.get("pmra_mas_yr", "0.0") or 0.0)
+                    pmdec = float(row.get("pmdec_mas_yr", "0.0") or 0.0)
+                except ValueError:
+                    pmra = 0.0
+                    pmdec = 0.0
+                ra_rad = math.atan2(direction_catalog[1], direction_catalog[0])
+                dec_rad = math.asin(max(-1.0, min(1.0, direction_catalog[2])))
+                delta_ra = pmra * args.apply_proper_motion_years * mas_to_rad
+                delta_dec = pmdec * args.apply_proper_motion_years * mas_to_rad
+                new_ra = ra_rad + delta_ra
+                new_dec = max(-math.pi / 2, min(math.pi / 2, dec_rad + delta_dec))
+                cd = math.cos(new_dec)
+                direction_inertial = normalize(
+                    np.array([cd * math.cos(new_ra), cd * math.sin(new_ra), math.sin(new_dec)])
+                )
+            else:
+                direction_inertial = direction_catalog
             direction_camera = rotation_camera_inertial @ direction_inertial
             if direction_camera[2] <= 0.0:
                 continue
@@ -74,7 +105,7 @@ def main() -> int:
             margin = 8.0
             if margin <= u < args.width - margin and margin <= v < args.height - margin:
                 mag = float(row.get("mag", "99"))
-                candidates.append((row["id"], direction_inertial, mag, u, v))
+                candidates.append((row["id"], direction_catalog, mag, u, v))
 
     if len(candidates) < args.stars:
         raise RuntimeError(f"only {len(candidates)} catalog stars are visible; need {args.stars}")

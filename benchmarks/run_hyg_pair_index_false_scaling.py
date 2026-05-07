@@ -95,6 +95,13 @@ def main() -> int:
         default=10.0,
         help="Forward to generate: cap on per-star noise sigma when --noise-mag-reference is set.",
     )
+    parser.add_argument(
+        "--apply-proper-motion-years",
+        type=float,
+        default=0.0,
+        help="Forward to generate: drift catalog positions by N years of pmra/pmdec before "
+        "projecting. Tests stale-catalog tolerance. 0 disables.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -152,6 +159,7 @@ def main() -> int:
                 mag_softness=args.mag_softness,
                 noise_mag_reference=args.noise_mag_reference,
                 noise_mag_cap_px=args.noise_mag_cap_px,
+                apply_proper_motion_years=args.apply_proper_motion_years,
             )
             drop_command = [
                 sys.executable,
