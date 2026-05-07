@@ -10,6 +10,41 @@ small so that experiments converge quickly, and the Python prototypes live along
 
 ## Demo
 
+### Lost-in-space star identification, full image pipeline
+
+`scripts/render_star_image.py` projects HYG mag≤8 catalog stars through camera intrinsics and
+places Gaussian PSF spots on a synthetic exposure (read noise + sky background + saturation),
+producing a PNG that looks like a real star tracker frame. `scripts/centroid_stars_from_image.py`
+detects centroids back from the PNG with peak finding + 2D Gaussian fit, and
+`identify_stars_with_pair_index.py` runs lost-in-space matching against a 16k mag≤8 pair index.
+
+End-to-end on a random attitude: **128 detected centroids → 126 correct, 2 wrong, 0 unassigned**.
+Green circles are correct identifications, red is wrong, blue is unassigned.
+
+![Lost-in-space identification on a synthetic star tracker image](docs/figures/lost_in_space_demo.png)
+
+```bash
+python3 scripts/render_star_image.py \
+  --catalog datasets/star_catalogs/hyg-v42/converted/hyg_v42_mag8p0_unit.csv \
+  --output-image outputs/exposure.png \
+  --output-truth outputs/truth.csv \
+  --yaw-deg 30 --pitch-deg 20 --roll-deg 10
+
+python3 scripts/centroid_stars_from_image.py \
+  --input-image outputs/exposure.png \
+  --output-observations outputs/observations_unlabeled.csv
+
+python3 scripts/identify_stars_with_pair_index.py \
+  --observations outputs/observations_unlabeled.csv \
+  --index <path-to>/hyg_pair_index_16000.npz \
+  --output outputs/assignments.csv \
+  --fx 1000 --fy 1000 --cx 512 --cy 512 \
+  --pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120 \
+  --pyramid-restarts 3 --confidence-fraction 0.5
+```
+
+### Lunar visual odometry on NASA POLAR Traverse 1
+
 NASA POLAR Traverse 1 (lunar-analogue testbed), left camera 50 ms exposure, 11 frames. Animated:
 SIFT keypoints per frame on the left, the SIFT-monocular VO trajectory accumulating on the right
 (Sim(3) aligned to ground truth, ATE RMSE 0.019 m).
