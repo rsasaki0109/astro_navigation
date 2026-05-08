@@ -7,6 +7,7 @@ datasets/*/manifest.json
 datasets/star_catalogs/*/raw/
 datasets/star_catalogs/*/converted/
 datasets/star_catalogs/*/manifest.json
+datasets/lro_cache/
 __pycache__/
 *.pyc
 .cache/
