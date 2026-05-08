@@ -8,6 +8,31 @@ The focus is space-specific localization. First-class directions are **star trac
 **terrain-relative navigation** — not generic Earth robotics VO. The implementation is deliberately
 small so that experiments converge quickly, and the Python prototypes live alongside the C++ apps.
 
+## Demo
+
+NASA POLAR Traverse 1 (lunar-analogue testbed), left camera 50 ms exposure, 11 frames. Top: SIFT
+keypoints detected on a real frame. Bottom: monocular and rectified-stereo VO trajectories aligned
+to ground truth.
+
+![SIFT keypoints on a NASA POLAR Traverse 1 frame](docs/figures/polar_traverse1_features.png)
+
+![POLAR Traverse 1 VO trajectories vs ground truth](docs/figures/polar_traverse1_vo_demo.png)
+
+Reproduce locally:
+
+```bash
+build/apps/lunar_visual_odometry \
+  --images outputs/polar_view1_traverse1_left_50ms/images.txt \
+  --fx 1452.71 --fy 1452.88 --cx 999.53 --cy 1035.4 \
+  --feature sift \
+  --trajectory outputs/trajectory_sift.tum
+
+python3 scripts/plot_trajectory_comparison.py \
+  --ground-truth outputs/polar_view1_traverse1_left_50ms/refined_poses.tsv \
+  --trajectory "SIFT monocular (Sim(3))" outputs/trajectory_sift.tum sim3 \
+  --output outputs/trajectory_sift_demo.png
+```
+
 ## Headline Results
 
 Numbers below are the current best on the corresponding benchmark. Full per-iteration history is in
