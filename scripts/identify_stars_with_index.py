@@ -141,6 +141,7 @@ def verify_rotation(
     tolerance_rad: float,
     magnitude_prior_rad: float,
     observation_magnitudes: list[float] | None = None,
+    fov_radius_rad: float | None = None,
 ) -> tuple[dict[int, int], float, float]:
     """Greedy verification under a rotation hypothesis.
 
@@ -149,10 +150,27 @@ def verify_rotation(
     (sharper discrimination because the prior penalizes magnitude mismatch),
     else falls back to the legacy `cat_mag` (prefer-bright-stars prior). The
     fallback path is bit-exact against fixtures that predate the obs-mag axis.
+
+    When `fov_radius_rad` is set, the catalog is pre-filtered to stars whose
+    inertial unit vector lies within `fov_radius_rad` of the optical axis
+    (R^T * [0,0,1]). This is a sky-cell pre-pruning step that keeps results
+    identical for any radius wide enough to enclose every visible catalog star
+    (typically the camera's circumscribed half-FOV plus the verification
+    tolerance). Default `None` disables pruning and stays bit-exact against the
+    pre-cone behaviour.
     """
-    candidates: list[tuple[float, float, int, int]] = []
     catalog_matrix = np.asarray(catalog_vectors, dtype=float)
     magnitude_vector = np.asarray(catalog_magnitudes, dtype=float)
+    cat_index_map: np.ndarray | None = None
+    if fov_radius_rad is not None and catalog_matrix.shape[0] > 0:
+        optical_axis_inertial = rotation_camera_inertial.T @ np.array([0.0, 0.0, 1.0])
+        cone_min_dot = math.cos(fov_radius_rad)
+        cone_mask = (catalog_matrix @ optical_axis_inertial) >= cone_min_dot
+        if not cone_mask.all():
+            cat_index_map = np.flatnonzero(cone_mask)
+            catalog_matrix = catalog_matrix[cat_index_map]
+            magnitude_vector = magnitude_vector[cat_index_map]
+    candidates: list[tuple[float, float, int, int]] = []
     predicted_vectors = catalog_matrix @ rotation_camera_inertial.T
     min_dot = math.cos(tolerance_rad)
     use_obs_mag = observation_magnitudes is not None
@@ -167,8 +185,12 @@ def verify_rotation(
         else:
             mag_term = magnitude_vector[candidate_indices]
         scores = errors + magnitude_prior_rad * mag_term
-        for score, error, cat_index in zip(scores, errors, candidate_indices, strict=True):
-            candidates.append((float(score), float(error), obs_index, int(cat_index)))
+        for score, error, local_cat_index in zip(scores, errors, candidate_indices, strict=True):
+            cat_index = (
+                int(cat_index_map[local_cat_index]) if cat_index_map is not None
+                else int(local_cat_index)
+            )
+            candidates.append((float(score), float(error), obs_index, cat_index))
 
     assignments: dict[int, int] = {}
     used_catalog_indices: set[int] = set()

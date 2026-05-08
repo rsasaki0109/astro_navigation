@@ -30,11 +30,16 @@ def edge_bin(edge: float, bin_size_rad: float) -> int:
 
 def load_pair_index(
     index_path: Path,
-) -> tuple[list[str], np.ndarray, np.ndarray, dict[int, list[tuple[int, int]]], float, str]:
+) -> tuple[
+    list[str], np.ndarray, np.ndarray, dict[int, list[tuple[int, int]]], float, str,
+    np.ndarray | None, int, int,
+]:
     """Load a pair index from .npz (preferred) or .pkl.
 
-    Returns (star_ids, catalog_vectors, catalog_magnitudes, index_dict, bin_size_rad, format_used).
-    If `index_path` is a .pkl with a sibling .npz, the .npz is loaded.
+    Returns (star_ids, catalog_vectors, catalog_magnitudes, index_dict, bin_size_rad,
+              format_used, sky_cell_ids_or_None, sky_cell_lat, sky_cell_lon).
+    Sky-cell fields are present in indices built after 2026-05-09; older indices return
+    `(None, 0, 0)` for the sky-cell triple so callers can fall back to whole-sky behaviour.
     """
     suffix = index_path.suffix.lower()
     npz_candidate = index_path if suffix == ".npz" else index_path.with_suffix(".npz")
@@ -47,12 +52,22 @@ def load_pair_index(
             bin_keys = np.asarray(data["bin_keys"], dtype=np.int64)
             bin_offsets = np.asarray(data["bin_offsets"], dtype=np.int64)
             pair_endpoints = np.ascontiguousarray(data["pair_endpoints"], dtype=np.int64)
+            sky_cell_ids: np.ndarray | None = None
+            sky_cell_lat = 0
+            sky_cell_lon = 0
+            if "sky_cell_ids" in data.files:
+                sky_cell_ids = np.asarray(data["sky_cell_ids"], dtype=np.int32)
+                sky_cell_lat = int(data["sky_cell_lat"])
+                sky_cell_lon = int(data["sky_cell_lon"])
         index: dict[int, np.ndarray] = {}
         for slot in range(len(bin_keys)):
             start = int(bin_offsets[slot])
             end = int(bin_offsets[slot + 1])
             index[int(bin_keys[slot])] = pair_endpoints[start:end]
-        return star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, "npz"
+        return (
+            star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, "npz",
+            sky_cell_ids, sky_cell_lat, sky_cell_lon,
+        )
 
     with index_path.open("rb") as handle:
         payload = pickle.load(handle)
@@ -63,7 +78,10 @@ def load_pair_index(
     bin_size_rad = float(payload["bin_size_rad"])
     raw_index = payload["index"]
     index = {int(k): list(v) for k, v in raw_index.items()}
-    return star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, "pkl"
+    return (
+        star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, "pkl",
+        None, 0, 0,
+    )
 
 
 def neighboring_pair_keys(key: int, radius: int) -> range:
@@ -133,6 +151,9 @@ def candidate_mappings(
     tolerance_rad: float,
     magnitude_prior_rad: float,
     obs_indices: tuple[int, int, int],
+    sky_cell_ids: np.ndarray | None = None,
+    sky_cell_centers: np.ndarray | None = None,
+    cell_compactness_min_dot: float | None = None,
 ) -> list[tuple[float, tuple[int, int, int]]]:
     obs_a, obs_b, obs_c = obs_indices
     edge_ab = angular_distance(observations[obs_a], observations[obs_b])
@@ -197,6 +218,34 @@ def candidate_mappings(
     eac = err_ac[accepted]
     ebc = err_bc[accepted]
 
+    if (
+        sky_cell_ids is not None
+        and sky_cell_centers is not None
+        and cell_compactness_min_dot is not None
+    ):
+        cells_a = sky_cell_ids[sel_a]
+        cells_b = sky_cell_ids[sel_b]
+        cells_c = sky_cell_ids[sel_c]
+        ca = sky_cell_centers[cells_a]
+        cb = sky_cell_centers[cells_b]
+        cc = sky_cell_centers[cells_c]
+        d_ab = np.einsum("ij,ij->i", ca, cb)
+        d_ac = np.einsum("ij,ij->i", ca, cc)
+        d_bc = np.einsum("ij,ij->i", cb, cc)
+        compact = (
+            (d_ab >= cell_compactness_min_dot)
+            & (d_ac >= cell_compactness_min_dot)
+            & (d_bc >= cell_compactness_min_dot)
+        )
+        if not compact.any():
+            return []
+        sel_a = sel_a[compact]
+        sel_b = sel_b[compact]
+        sel_c = sel_c[compact]
+        eab = eab[compact]
+        eac = eac[compact]
+        ebc = ebc[compact]
+
     edge_score = np.sqrt((eab * eab + eac * eac + ebc * ebc) / 3.0)
     magnitude_score = (
         catalog_magnitudes[sel_a] + catalog_magnitudes[sel_b] + catalog_magnitudes[sel_c]
@@ -205,7 +254,7 @@ def candidate_mappings(
 
     return [
         (float(final_scores[i]), (int(sel_a[i]), int(sel_b[i]), int(sel_c[i])))
-        for i in range(accepted.size)
+        for i in range(sel_a.size)
     ]
 
 
@@ -274,6 +323,27 @@ def main() -> int:
     parser.add_argument("--distortion-k2", type=float, default=None)
     parser.add_argument("--distortion-p1", type=float, default=None)
     parser.add_argument("--distortion-p2", type=float, default=None)
+    parser.add_argument(
+        "--fov-radius-deg",
+        type=float,
+        default=None,
+        help="Sky-cell verification pre-pruning: when set, only catalog stars within this "
+        "angular radius of the optical axis (R^T * [0,0,1]) participate in verification. "
+        "Bit-exact-equivalent for any radius wide enough to enclose every visible star (set "
+        "to half the camera diagonal FOV plus the verification tolerance). Default None "
+        "preserves the legacy whole-catalog verification path bit-exactly.",
+    )
+    parser.add_argument(
+        "--cell-compactness-deg",
+        type=float,
+        default=None,
+        help="Sky-cell triangle compactness post-merge filter: drop catalog triangles "
+        "(a, b, c) whose sky-cell centers span an angle larger than this threshold (so all "
+        "three pairwise cell-center angles must be ≤ this value). The filter is correctness-"
+        "preserving for any threshold wide enough to enclose the camera diagonal FOV plus the "
+        "sky-cell diagonal. Requires the index to embed `sky_cell_ids` (built 2026-05-09+). "
+        "Default None disables the filter and preserves the bit-exact merged set.",
+    )
     args = parser.parse_args()
 
     # Reconcile --calibration-json with the individual flags. Explicit CLI flags always win;
@@ -297,10 +367,28 @@ def main() -> int:
         if getattr(args, attr) is None:
             setattr(args, attr, float(distortion_block.get(coef, 0.0)))
 
-    star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, index_format = load_pair_index(args.index)
+    (
+        star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, index_format,
+        sky_cell_ids, sky_cell_lat, sky_cell_lon,
+    ) = load_pair_index(args.index)
     tolerance_rad = math.radians(args.tolerance_arcsec / 3600.0)
     verification_tolerance_rad = math.radians(args.verification_tolerance_arcsec / 3600.0)
     magnitude_prior_rad = math.radians(args.magnitude_prior_arcsec / 3600.0)
+    fov_radius_rad = math.radians(args.fov_radius_deg) if args.fov_radius_deg is not None else None
+    cell_compactness_min_dot: float | None = None
+    sky_cell_centers_arr: np.ndarray | None = None
+    if args.cell_compactness_deg is not None:
+        from build_star_pair_index import (
+            _DEFAULT_SKY_CELL_LAT, _DEFAULT_SKY_CELL_LON,
+            sky_cell_centers as _sky_cell_centers,
+            sky_cell_id_array as _sky_cell_id_array,
+        )
+        if sky_cell_ids is None:
+            sky_cell_lat = _DEFAULT_SKY_CELL_LAT
+            sky_cell_lon = _DEFAULT_SKY_CELL_LON
+            sky_cell_ids = _sky_cell_id_array(catalog_vectors, sky_cell_lat, sky_cell_lon)
+        sky_cell_centers_arr = _sky_cell_centers(sky_cell_lat, sky_cell_lon)
+        cell_compactness_min_dot = math.cos(math.radians(args.cell_compactness_deg))
 
     observations, observation_magnitudes = load_observations_with_mag(
         args.observations,
@@ -355,6 +443,9 @@ def main() -> int:
                 tolerance_rad,
                 magnitude_prior_rad,
                 obs_indices,
+                sky_cell_ids=sky_cell_ids,
+                sky_cell_centers=sky_cell_centers_arr,
+                cell_compactness_min_dot=cell_compactness_min_dot,
             )
             candidate_hypotheses += len(candidates)
             candidates.sort(key=lambda item: item[0])
@@ -389,6 +480,7 @@ def main() -> int:
                 verification_tolerance_rad,
                 magnitude_prior_rad,
                 observation_magnitudes=observation_magnitudes,
+                fov_radius_rad=fov_radius_rad,
             )
             verification_seconds += time.perf_counter() - verify_start
             if candidate_assignments:
@@ -454,6 +546,10 @@ def main() -> int:
         "neighbor_bins": args.neighbor_bins,
         "verification_tolerance_arcsec": args.verification_tolerance_arcsec,
         "magnitude_prior_arcsec": args.magnitude_prior_arcsec,
+        "fov_radius_deg": args.fov_radius_deg,
+        "cell_compactness_deg": args.cell_compactness_deg,
+        "sky_cell_lat": sky_cell_lat,
+        "sky_cell_lon": sky_cell_lon,
         "max_candidates_per_observation_triangle": args.max_candidates_per_observation_triangle,
         "max_verified_hypotheses": args.max_verified_hypotheses,
         "verified_hypotheses": verified_hypotheses,

@@ -264,10 +264,46 @@ VerifyResult verify_rotation(
     const std::vector<double>& observation_magnitudes,
     const PairIndex& index,
     double tolerance_rad,
-    double magnitude_prior_rad) {
+    double magnitude_prior_rad,
+    double fov_radius_rad = std::numeric_limits<double>::infinity()) {
   const bool use_obs_mag = !observation_magnitudes.empty();
-  const Eigen::MatrixXd predicted = index.vectors * rotation_camera_inertial.transpose();
   const double min_dot = std::cos(tolerance_rad);
+
+  // Sky-cell verification cone: when fov_radius_rad is finite, restrict the
+  // catalog to stars whose inertial unit vector lies within the cone of half
+  // angle fov_radius_rad around the optical axis (R^T * [0,0,1]).
+  Eigen::MatrixXd predicted;
+  Eigen::VectorXd magnitude_subset;
+  std::vector<int> cat_index_map;
+  if (std::isfinite(fov_radius_rad) && index.vectors.rows() > 0) {
+    const Eigen::Vector3d axis_inertial =
+        rotation_camera_inertial.transpose() * Eigen::Vector3d(0.0, 0.0, 1.0);
+    const Eigen::VectorXd axis_dot = index.vectors * axis_inertial;
+    const double cone_min_dot = std::cos(fov_radius_rad);
+    cat_index_map.reserve(static_cast<std::size_t>(axis_dot.size()));
+    for (int i = 0; i < axis_dot.size(); ++i) {
+      if (axis_dot(i) >= cone_min_dot) cat_index_map.push_back(i);
+    }
+    if (cat_index_map.empty()) {
+      return {};
+    }
+    Eigen::MatrixXd subset(cat_index_map.size(), 3);
+    magnitude_subset.resize(static_cast<Eigen::Index>(cat_index_map.size()));
+    for (std::size_t row = 0; row < cat_index_map.size(); ++row) {
+      subset.row(static_cast<Eigen::Index>(row)) = index.vectors.row(cat_index_map[row]);
+      magnitude_subset(static_cast<Eigen::Index>(row)) = index.magnitudes(cat_index_map[row]);
+    }
+    predicted = subset * rotation_camera_inertial.transpose();
+  } else {
+    predicted = index.vectors * rotation_camera_inertial.transpose();
+  }
+
+  auto cat_mag_at = [&](int local_index) {
+    return cat_index_map.empty() ? index.magnitudes(local_index) : magnitude_subset(local_index);
+  };
+  auto cat_index_at = [&](int local_index) {
+    return cat_index_map.empty() ? local_index : cat_index_map[static_cast<std::size_t>(local_index)];
+  };
 
   struct Candidate {
     double score;
@@ -280,20 +316,20 @@ VerifyResult verify_rotation(
 
   for (int obs_index = 0; obs_index < static_cast<int>(observations.size()); ++obs_index) {
     const Eigen::VectorXd dots = predicted * observations[obs_index];
-    for (int cat_index = 0; cat_index < dots.size(); ++cat_index) {
-      double dot = dots(cat_index);
+    for (int local_cat = 0; local_cat < dots.size(); ++local_cat) {
+      double dot = dots(local_cat);
       if (dot < min_dot) {
         continue;
       }
       if (dot > 1.0) dot = 1.0;
       if (dot < -1.0) dot = -1.0;
       const double error = std::acos(dot);
-      const double cat_mag = index.magnitudes(cat_index);
+      const double cat_mag = cat_mag_at(local_cat);
       const double mag_term = use_obs_mag
           ? std::abs(cat_mag - observation_magnitudes[static_cast<std::size_t>(obs_index)])
           : cat_mag;
       const double score = error + magnitude_prior_rad * mag_term;
-      candidates.push_back(Candidate{score, error, obs_index, cat_index});
+      candidates.push_back(Candidate{score, error, obs_index, cat_index_at(local_cat)});
     }
   }
 
@@ -515,7 +551,7 @@ LostInSpaceResult identify_lost_in_space(
           observations, index, pairs);
       const VerifyResult v = verify_rotation(
           rotation, observations, observation_magnitudes, index,
-          verification_tolerance_rad, magnitude_prior_rad);
+          verification_tolerance_rad, magnitude_prior_rad, config.fov_radius_rad);
       result.verification_seconds += seconds_since(verify_start);
       if (!v.assignments.empty()) {
         result.verified_hypotheses += 1;

@@ -24,6 +24,11 @@ struct LostInSpaceConfig {
   int pyramid_restarts = 0;
   double confidence_fraction = 0.5;
   std::uint64_t pyramid_restart_seed = 0;
+  // Sky-cell verification cone: when finite, only catalog stars within this
+  // angular radius (radians) of the optical axis (R^T * [0,0,1]) participate
+  // in verification. Use std::numeric_limits<double>::infinity() (default) to
+  // disable and stay byte-exact against the legacy whole-catalog path.
+  double fov_radius_rad = std::numeric_limits<double>::infinity();
 };
 
 struct LostInSpaceResult {
