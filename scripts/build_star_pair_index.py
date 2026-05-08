@@ -70,6 +70,10 @@ def main() -> int:
     star_count = len(vectors)
 
     # Vectorized pair enumeration: for each i, batch the (i, j>i) pair edges in numpy.
+    # Intermediate buffers use int32 — catalog indices and bin keys both fit comfortably
+    # (max catalog index ~80k vs int32 max 2.1G; max bin key ~max_edge_deg/bin_arcsec arcsec
+    # which is in the low thousands). int32 halves intermediate memory vs the previous int64
+    # path, which is required to fit large (60k+) builds into typical workstation RAM.
     pair_lhs_chunks: list[np.ndarray] = []
     pair_rhs_chunks: list[np.ndarray] = []
     pair_bin_chunks: list[np.ndarray] = []
@@ -80,10 +84,10 @@ def main() -> int:
         mask = (edges >= min_edge_rad) & (edges <= max_edge_rad)
         if not mask.any():
             continue
-        valid_j = np.flatnonzero(mask) + (i + 1)
+        valid_j = (np.flatnonzero(mask) + (i + 1)).astype(np.int32, copy=False)
         valid_edges = edges[mask]
-        valid_bins = np.round(valid_edges / bin_size_rad).astype(np.int64)
-        pair_lhs_chunks.append(np.full(valid_j.shape, i, dtype=np.int64))
+        valid_bins = np.round(valid_edges / bin_size_rad).astype(np.int32)
+        pair_lhs_chunks.append(np.full(valid_j.shape, i, dtype=np.int32))
         pair_rhs_chunks.append(valid_j)
         pair_bin_chunks.append(valid_bins)
 
@@ -92,9 +96,12 @@ def main() -> int:
         all_rhs = np.concatenate(pair_rhs_chunks)
         all_bins = np.concatenate(pair_bin_chunks)
     else:
-        all_lhs = np.empty(0, dtype=np.int64)
-        all_rhs = np.empty(0, dtype=np.int64)
-        all_bins = np.empty(0, dtype=np.int64)
+        all_lhs = np.empty(0, dtype=np.int32)
+        all_rhs = np.empty(0, dtype=np.int32)
+        all_bins = np.empty(0, dtype=np.int32)
+    pair_lhs_chunks.clear()
+    pair_rhs_chunks.clear()
+    pair_bin_chunks.clear()
 
     pair_count = int(all_lhs.size)
     # Group into bin buckets in one numpy-driven pass.
@@ -102,10 +109,12 @@ def main() -> int:
     sorted_bins = all_bins[sort_order]
     sorted_lhs = all_lhs[sort_order]
     sorted_rhs = all_rhs[sort_order]
+    del all_lhs, all_rhs, all_bins, sort_order
     unique_bins, group_starts = np.unique(sorted_bins, return_index=True)
     group_ends = np.empty_like(group_starts)
     group_ends[:-1] = group_starts[1:]
     group_ends[-1] = sorted_bins.size
+    del sorted_bins
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     star_ids = [star[0] for star in stars]
