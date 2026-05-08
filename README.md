@@ -12,16 +12,21 @@ small so that experiments converge quickly, and the Python prototypes live along
 
 ### Lost-in-space star identification, full image pipeline
 
-`scripts/render_star_image.py` projects HYG mag≤8 catalog stars through camera intrinsics and
+`scripts/render_star_image.py` projects HYG catalog stars through camera intrinsics and
 places Gaussian PSF spots on a synthetic exposure (read noise + sky background + saturation),
 producing a PNG that looks like a real star tracker frame. `scripts/centroid_stars_from_image.py`
 detects centroids back from the PNG with peak finding + 2D Gaussian fit, and
-`identify_stars_with_pair_index.py` runs lost-in-space matching against a 16k mag≤8 pair index.
+`apps/lost_in_space_pair_id` (or its Python sibling) runs lost-in-space matching against a
+pre-built pair-angle index.
 
-End-to-end on a random attitude: **128 detected centroids → 126 correct, 2 wrong, 0 unassigned**.
-Green circles are correct identifications, red is wrong, blue is unassigned.
+The animation below sweeps six random attitudes through the full pipeline. Across all six
+frames the identifier returns **766/768 correct, 2 wrong, 0 unassigned** on 128 detected
+centroids per frame against the catalog-saturated mag≤6.5 16 k index. Green circles are correct
+identifications, red is wrong, blue is unassigned.
 
-![Lost-in-space identification on a synthetic star tracker image](docs/figures/lost_in_space_demo.png)
+![Lost-in-space identification across a random-attitude sweep](docs/figures/lost_in_space_demo.gif)
+
+Reproduce locally — single attitude:
 
 ```bash
 python3 scripts/render_star_image.py \
@@ -41,6 +46,16 @@ python3 scripts/identify_stars_with_pair_index.py \
   --fx 1000 --fy 1000 --cx 512 --cy 512 \
   --pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120 \
   --pyramid-restarts 3 --confidence-fraction 0.5
+```
+
+…or stitch the multi-attitude GIF in one command (uses the C++ identifier with a `.bin` index
+emitted by `scripts/build_star_pair_index.py --write-bin` or `apps/build_star_pair_index`):
+
+```bash
+python3 scripts/render_lost_in_space_gif.py \
+  --catalog datasets/star_catalogs/hyg-v42/converted/hyg_v42_bright_mag6p5_unit.csv \
+  --index-bin <path-to>/hyg_pair_index_16000.bin \
+  --output docs/figures/lost_in_space_demo.gif
 ```
 
 ### Lunar visual odometry on NASA POLAR Traverse 1
