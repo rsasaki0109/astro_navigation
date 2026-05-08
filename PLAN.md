@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (proper-motion realism axis: 766/768 correct under 500-year stale catalog; matcher degrades gracefully at high-pm stars without losing the attitude)
+Last updated: 2026-05-08 (5-axis realism stack: 767/768 correct with restart=3; hot-pixel false-positive axis added; 2/24 trials hit the 4-attempt restart-budget ceiling, suggesting a small headroom margin)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
