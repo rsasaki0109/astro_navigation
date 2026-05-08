@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (60000 mag&le;9 smoke: 32/32 correct extends past the mag&le;8 catalog ceiling; query ~5 min so sky-cell partitioning is now the prerequisite for routine operation at mag&le;9)
+Last updated: 2026-05-08 (proper-motion realism axis: 766/768 correct under 500-year stale catalog; matcher degrades gracefully at high-pm stars without losing the attitude)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space

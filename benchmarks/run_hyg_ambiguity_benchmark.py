@@ -60,6 +60,7 @@ def generate_visible_case(
     mag_softness: float = 0.5,
     noise_mag_reference: float | None = None,
     noise_mag_cap_px: float = 10.0,
+    apply_proper_motion_years: float = 0.0,
 ) -> None:
     rng = random.Random(seed)
     for attempt in range(max_attempts):
@@ -102,6 +103,13 @@ def generate_visible_case(
                     f"{noise_mag_reference:.6f}",
                     "--noise-mag-cap-px",
                     f"{noise_mag_cap_px:.6f}",
+                ]
+            )
+        if apply_proper_motion_years != 0.0:
+            command.extend(
+                [
+                    "--apply-proper-motion-years",
+                    f"{apply_proper_motion_years:.6f}",
                 ]
             )
         if try_run(command):

@@ -59,7 +59,7 @@ def main() -> int:
     with open_text(args.input) as handle, args.output.open("w", newline="", encoding="utf-8") as out:
         reader = csv.DictReader(handle)
         writer = csv.writer(out)
-        writer.writerow(["id", "x", "y", "z", "mag", "ra_deg", "dec_deg"])
+        writer.writerow(["id", "x", "y", "z", "mag", "ra_deg", "dec_deg", "pmra_mas_yr", "pmdec_mas_yr"])
         for index, row in enumerate(reader):
             try:
                 ra = float(row[args.ra_column])
@@ -71,6 +71,14 @@ def main() -> int:
                 continue
             if args.format == "hyg" and row.get("proper") == "Sol":
                 continue
+            try:
+                pmra = float(row.get("pmra", "0.0") or 0.0)
+            except ValueError:
+                pmra = 0.0
+            try:
+                pmdec = float(row.get("pmdec", "0.0") or 0.0)
+            except ValueError:
+                pmdec = 0.0
             x, y, z, ra_deg, dec_deg = direction_from_ra_dec(ra, dec, args.ra_unit)
             writer.writerow(
                 [
@@ -81,6 +89,8 @@ def main() -> int:
                     f"{mag:.6f}",
                     f"{ra_deg:.9f}",
                     f"{dec_deg:.9f}",
+                    f"{pmra:.6f}",
+                    f"{pmdec:.6f}",
                 ]
             )
             written += 1
