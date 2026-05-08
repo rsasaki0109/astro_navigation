@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libopencv-dev libeigen3-dev clang-format python3-matplotlib
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Star tracker smoke test
+        run: |
+          python3 scripts/generate_star_tracker_case.py --output-dir outputs/star_tracker_smoke --noise-px 0.1 --stars 12
+          build/apps/star_tracker_attitude --catalog outputs/star_tracker_smoke/catalog.csv --observations outputs/star_tracker_smoke/observations.csv --fx 1000 --fy 1000 --cx 512 --cy 512
+      - name: Format check
+        run: |
+          find . \( -name '*.cpp' -o -name '*.hpp' \) | xargs clang-format --dry-run --Werror
+      - name: Dataset registry smoke test
+        run: |
+          python3 scripts/download_dataset.py --list
+          python3 -m py_compile scripts/download_dataset.py scripts/download_star_catalog.py scripts/convert_star_catalog.py scripts/filter_star_catalog.py scripts/generate_star_tracker_case.py scripts/generate_star_tracker_observations_from_catalog.py scripts/drop_star_ids.py scripts/identify_stars_by_triangles.py scripts/build_star_triangle_index.py scripts/build_star_pair_index.py scripts/identify_stars_with_index.py scripts/identify_stars_with_pair_index.py scripts/apply_star_identifications.py scripts/prepare_polar_traverse.py scripts/evaluate_trajectory.py scripts/plot_trajectory.py benchmarks/run_hyg_ambiguity_benchmark.py benchmarks/run_hyg_pair_index_benchmark.py benchmarks/run_hyg_pair_index_robustness.py benchmarks/run_hyg_pair_index_observation_scaling.py benchmarks/run_hyg_pair_index_false_scaling.py benchmarks/run_lost_in_space_benchmark.py benchmarks/run_lost_in_space_robustness.py benchmarks/run_star_tracker_benchmark.py benchmarks/run_visual_odometry_benchmark.py benchmarks/run_polar_traverse_suite.py benchmarks/summarize_exposure_sweep.py

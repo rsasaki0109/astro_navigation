@@ -1,0 +1,12 @@
+build/
+cmake-build-*/
+outputs/
+datasets/*/raw/
+datasets/*/extracted/
+datasets/*/manifest.json
+datasets/star_catalogs/*/raw/
+datasets/star_catalogs/*/converted/
+datasets/star_catalogs/*/manifest.json
+__pycache__/
+*.pyc
+.cache/
