@@ -43,6 +43,19 @@ def main() -> int:
         default=0.5,
         help="Sigmoid width for --limiting-magnitude probabilistic detection.",
     )
+    parser.add_argument(
+        "--noise-mag-reference",
+        type=float,
+        default=None,
+        help="If set, scale per-star centroid noise as noise_px * 10^(0.4 * (mag - reference)) "
+        "to model brighter-stars-have-lower-noise. Default disabled — uniform Gaussian noise.",
+    )
+    parser.add_argument(
+        "--noise-mag-cap-px",
+        type=float,
+        default=10.0,
+        help="Upper cap on per-star centroid noise sigma when --noise-mag-reference is active.",
+    )
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -86,10 +99,17 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     catalog_rows = ["id,x,y,z"]
     observation_rows = ["id,u,v"]
-    for star_id, direction, _mag, u, v in chosen:
+    for star_id, direction, mag, u, v in chosen:
+        if args.noise_mag_reference is None:
+            sigma_px = args.noise_px
+        else:
+            sigma_px = min(
+                args.noise_px * (10.0 ** (0.4 * (mag - args.noise_mag_reference))),
+                args.noise_mag_cap_px,
+            )
         catalog_rows.append(f"{star_id},{direction[0]:.12f},{direction[1]:.12f},{direction[2]:.12f}")
         observation_rows.append(
-            f"{star_id},{u + rng.normal(0.0, args.noise_px):.6f},{v + rng.normal(0.0, args.noise_px):.6f}"
+            f"{star_id},{u + rng.normal(0.0, sigma_px):.6f},{v + rng.normal(0.0, sigma_px):.6f}"
         )
 
     (args.output_dir / "catalog.csv").write_text("\n".join(catalog_rows) + "\n", encoding="utf-8")

@@ -58,6 +58,8 @@ def generate_visible_case(
     max_attempts: int,
     limiting_magnitude: float | None = None,
     mag_softness: float = 0.5,
+    noise_mag_reference: float | None = None,
+    noise_mag_cap_px: float = 10.0,
 ) -> None:
     rng = random.Random(seed)
     for attempt in range(max_attempts):
@@ -91,6 +93,15 @@ def generate_visible_case(
                     f"{limiting_magnitude:.6f}",
                     "--mag-softness",
                     f"{mag_softness:.6f}",
+                ]
+            )
+        if noise_mag_reference is not None:
+            command.extend(
+                [
+                    "--noise-mag-reference",
+                    f"{noise_mag_reference:.6f}",
+                    "--noise-mag-cap-px",
+                    f"{noise_mag_cap_px:.6f}",
                 ]
             )
         if try_run(command):
