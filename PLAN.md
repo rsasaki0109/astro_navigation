@@ -1,6 +1,20 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-09 (C++ port started: binary pair index loader + apps/lost_in_space_pair_id CLI verified on 500 / 16000 fixtures with bit-exact metadata vs the Python build)
+Last updated: 2026-05-09 (C++ identifier port complete: candidate_mappings, verify_rotation,
+and pyramid+restart loop all ported. apps/lost_in_space_pair_id produces byte-exact assignments
+CSVs vs the Python reference on 500 / 2000 / 16000 fixtures, both default and pyramid modes.
+CI bit-exact smoke landed. Brown-Conrady distortion realism axis added; identifier breaks
+hard at uncalibrated k1 ≲ -0.05; undistort-at-front-door (`--distortion-k1/k2/p1/p2` on both
+Python and C++ identifiers) restores correctness fully and stays byte-exact across the sweep.
+C++ pair-index builder (apps/build_star_pair_index) shipped, byte-exact .bin vs Python
+--write-bin on 500/4000/16000 fixtures, refactored to 2-pass bucket fill: 16000-star
+build now 2.07 s / 134 MB (~6x faster, ~5.5x less RAM than Python). `--calibration-json`
+umbrella flag landed on both identifiers; truth.json round-trip is byte-exact and
+explicit flags still override the JSON values. Edge-biased false-positive realism axis
+added; surfaces a restart-fixable single-pass failure at 44% false rate.
+Observation-side magnitude axis added end-to-end; mag prior resolves a
+fixture-specific 1-wrong baseline AND fixes the edge=12 single-pass failure
+without restart.)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -728,21 +742,64 @@ The next handoff should pick from the following, in roughly decreasing value:
    int32 buffers (peaked ~30 GB at 60k; 80k extrapolates to ~50-55 GB on a 62 GB box).
    Streaming-merge build is the next memory-side fix if needed.
 
-3. **Continue the C++ port of the pair-index identifier.** Skeleton landed 2026-05-09: a
-   flat zlib-free binary format (`--write-bin` on the Python build), a
-   `localization::PairIndex` struct, `load_pair_index_bin()`, and `apps/lost_in_space_pair_id`
-   CLI that prints metadata matching the Python build bit-exactly. Next sessions:
-   - Port `candidate_mappings()` (3-way merge over pair lists + Eigen einsum-equivalent for
-     predicted edges) — the hot path.
-   - Port `verify_rotation()` (Wahba/Kabsch via Eigen JacobiSVD + bulk dot product).
-   - Port the pyramid + restart loop. Compare the C++ assignments output against the Python
-     reference on the same fixtures (500 / 16000) for bit-exact correctness.
+3. **Continue the C++ port of the pair-index identifier.** Identifier landed 2026-05-09:
+   - Flat zlib-free binary format (`--write-bin` on `scripts/build_star_pair_index.py`),
+     `localization::PairIndex` + `load_pair_index_bin()`.
+   - `candidate_mappings()` ported (`pair_id_solver.cpp`): 3-way merge via AB/AC adjacency
+     maps + a `(b, c)` hash set for the BC join, with Eigen einsum-equivalent dot products
+     for predicted edges and the same edge-residual + magnitude-prior scoring as Python.
+   - `verify_rotation()` ported: predicted directions via `catalog_vectors * R^T` in Eigen,
+     greedy lexicographic assignment matching Python's `sorted((score, error, obs, cat))`.
+   - Wahba/Kabsch (`estimate_rotation_camera_inertial`) ported via `Eigen::JacobiSVD` with
+     `det < 0` reflection guard.
+   - Pyramid + restart loop ported (`identify_lost_in_space`): pool selection,
+     `select_observation_triangles` with uniform sampling, attempt-vs-best promotion using
+     `math.isclose`-equivalent tie-break.
+   - `apps/lost_in_space_pair_id` extended into a full CLI (CRLF-aware CSV loader,
+     CRLF assignments output, JSON metadata mirroring Python fields with `index_format = bin`).
+   - Bit-exact verified: 500 trial_000/001, 2000 trial_000/001, 2000 pyramid_size=6, and
+     16000 (mag≤6.5, catalog-saturated to 8920) pyramid_size=6 all `cmp` clean against the
+     Python reference; metadata `best_rms_error_arcsec` differs only at the ~1e-6 level
+     (Eigen JacobiSVD vs LAPACK gesdd numerical noise).
+   - Restart-pool shuffle uses `std::mt19937_64` and is *not* bit-compatible with Python's
+     `random.Random.shuffle`. The current bit-exact fixtures all succeed on attempt 0, so
+     this only affects fixtures that need a real restart. If/when restart-mode bit-exactness
+     is required, port `random.Random` MT19937 + Fisher-Yates exactly into the C++ side.
+   - **C++ port of `scripts/build_star_pair_index.py` landed 2026-05-09**:
+     `apps/build_star_pair_index` produces byte-exact `.bin` against Python `--write-bin`
+     on 500 / 4000 / 16000 fixtures. Refactored same day to a 2-pass bucket fill (no
+     intermediate sort buffer), which dropped the 16000-star build to 2.07 s / 134 MB
+     (was 2.76 s / 393 MB; Python `--write-bin` was 12.51 s / 748 MB). Deployment pipeline
+     no longer needs Python at runtime. Open: disk-streaming external sort for mag≤9 80k+
+     where even the final `pair_endpoints` array (~25 GB at 3.2 G pairs) exceeds a 32 GB
+     workstation.
+   - CI bit-exact smoke landed (see step 7); now exercises both builders on the same
+     synthetic catalog, with the .bin / assignments CSV both `cmp`'d.
 
 4. **More realism axes.** Done so far: probabilistic mag-weighted detection, near-real-star
-   false positives, magnitude-dependent centroid noise. Open: optical distortion (radial /
-   Brown-Conrady), catalog proper motion / aberration, image-edge / hot-pixel false-positive
-   distributions, magnitude-aware false-positive intensity (false detections cluster brighter
-   near read-noise spikes than uniformly).
+   false positives, magnitude-dependent centroid noise, **forward Brown-Conrady distortion
+   on the observation generator + iterative inverse-Brown-Conrady undistortion at the
+   identifier front door (2026-05-09)**. With the undistortion flags forwarded to both
+   `identify_stars_with_pair_index.py` and `apps/lost_in_space_pair_id`, correctness is
+   restored across k1 ∈ {0, -0.02, -0.05, -0.10, -0.20, -0.30} (15/16 throughout, identical
+   to no-distortion baseline) and the C++ output stays byte-exact against Python at every
+   level. The `--calibration-json` umbrella flag (intrinsics + distortion bundled,
+   schema matches the generator's `truth.json`) shipped 2026-05-09 on both Python and C++
+   identifiers and is byte-exact against the explicit-flag path. **Edge-biased false
+   positives** (`--false-edge-fraction` / `--false-edge-band-px` on `drop_star_ids.py`,
+   2026-05-09) added: at 16 true + 12 false (44% false rate, 24 px band), single-pass
+   identification collapses to 0/16 correct vs 15/16 under uniform false positives at the
+   same budget. `--pyramid-restarts 3` recovers full correctness on attempt 1, confirming
+   this stays a restart-fixable failure mode. **Observation-side magnitude axis**
+   (2026-05-09): `id,u,v,mag` schema in the generator, optional `mag` column threaded
+   through `drop_star_ids.py`, `identify_stars_with_pair_index.py`, and
+   `apps/lost_in_space_pair_id`. `verify_rotation` uses `|obs_mag - cat_mag|` as the
+   magnitude term when available; legacy `cat_mag` is the no-mag fallback. Two wins:
+   (1) the persistent fixture-specific 1-wrong assignment that survived every prior
+   sweep is resolved (16/16 vs 15/16); (2) edge-biased false=12 succeeds at 16/16
+   single-pass without restart. Still open: catalog aberration (annual),
+   magnitude-aware false-positive *intensity* (cluster brighter false detections
+   specifically around read-noise spikes rather than uniform Gaussian mag).
 
 5. **Top-K verified-hypothesis ranking** (deeper algorithmic hardening). Restart is a pragmatic
    fix; a more principled solution keeps top-K candidate attitudes and explicitly reasons about
@@ -752,9 +809,15 @@ The next handoff should pick from the following, in roughly decreasing value:
 6. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
    OK even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
 
-For the immediate `tugi` cycle, step 1 (mag&le;9) is the natural density continuation;
-step 3 (C++ port) is the deployment-direction continuation. Step 4 stays attractive because each
-axis is cheap (~30 min) and surfaces fresh failure-mode data.
+7. **CI bit-exact smoke for the C++ identifier.** Now that `apps/lost_in_space_pair_id` is
+   byte-exact against the Python reference on the 500 / 2000 / 16000 fixtures, add a small
+   `.github/workflows/ci.yml` job that builds the C++ binary and `cmp`s its output against
+   `scripts/identify_stars_with_pair_index.py` on a checked-in 500-star fixture. Catches both
+   regressions in the algorithm port and accidental drift in the `.bin` format encoder.
+
+For the immediate `tugi` cycle, step 7 (CI smoke) is the cheapest follow-up to step 3; then
+step 1 (mag&le;9 sky-cell partitioning) is the natural density continuation, and step 4 stays
+attractive because each realism axis is cheap (~30 min) and surfaces fresh failure-mode data.
 
 ## Current Best Technical Summary
 

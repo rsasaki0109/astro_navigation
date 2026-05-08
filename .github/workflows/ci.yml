@@ -21,6 +21,46 @@ jobs:
         run: |
           python3 scripts/generate_star_tracker_case.py --output-dir outputs/star_tracker_smoke --noise-px 0.1 --stars 12
           build/apps/star_tracker_attitude --catalog outputs/star_tracker_smoke/catalog.csv --observations outputs/star_tracker_smoke/observations.csv --fx 1000 --fy 1000 --cx 512 --cy 512
+      - name: Lost-in-space C++ vs Python bit-exact smoke
+        run: |
+          set -euo pipefail
+          fixture=outputs/lost_in_space_smoke
+          mkdir -p "$fixture"
+          python3 scripts/generate_star_tracker_case.py \
+            --output-dir "$fixture" --noise-px 0.1 --stars 12 --seed 17
+          awk -F',' 'NR==1{print "u,v"; next} {print $2","$3}' \
+            "$fixture/observations.csv" > "$fixture/observations_unlabeled.csv"
+          python3 scripts/build_star_pair_index.py \
+            --catalog "$fixture/catalog.csv" \
+            --output "$fixture/pair_index.pkl" \
+            --write-bin --skip-pkl \
+            --bin-arcsec 120 --min-edge-deg 0.2 --max-edge-deg 80
+          build/apps/build_star_pair_index \
+            --catalog "$fixture/catalog.csv" \
+            --output "$fixture/pair_index_cpp.bin" \
+            --bin-arcsec 120 --min-edge-deg 0.2 --max-edge-deg 80
+          cmp "$fixture/pair_index.bin" "$fixture/pair_index_cpp.bin"
+          python3 scripts/identify_stars_with_pair_index.py \
+            --observations "$fixture/observations_unlabeled.csv" \
+            --index "$fixture/pair_index.npz" \
+            --output "$fixture/py_assignments.csv" \
+            --fx 1000 --fy 1000 --cx 512 --cy 512 \
+            --tolerance-arcsec 300 --neighbor-bins 2 \
+            --verification-tolerance-arcsec 600 --magnitude-prior-arcsec 15 \
+            --max-observation-triangles 400 \
+            --max-candidates-per-observation-triangle 8 \
+            --max-verified-hypotheses 400
+          build/apps/lost_in_space_pair_id \
+            --observations "$fixture/observations_unlabeled.csv" \
+            --index "$fixture/pair_index.bin" \
+            --output "$fixture/cpp_assignments.csv" \
+            --fx 1000 --fy 1000 --cx 512 --cy 512 \
+            --tolerance-arcsec 300 --neighbor-bins 2 \
+            --verification-tolerance-arcsec 600 --magnitude-prior-arcsec 15 \
+            --max-observation-triangles 400 \
+            --max-candidates-per-observation-triangle 8 \
+            --max-verified-hypotheses 400
+          cmp "$fixture/py_assignments.csv" "$fixture/cpp_assignments.csv"
       - name: Format check
         run: |
           find . \( -name '*.cpp' -o -name '*.hpp' \) | xargs clang-format --dry-run --Werror

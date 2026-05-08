@@ -63,6 +63,32 @@ def main() -> int:
         help="If non-zero, drift each catalog direction by `pmra_mas_yr * years` in RA and "
         "`pmdec_mas_yr * years` in Dec before projecting to the camera. Tests catalog freshness.",
     )
+    parser.add_argument(
+        "--distortion-k1",
+        type=float,
+        default=0.0,
+        help="Brown-Conrady radial distortion coefficient k1 applied at projection (forward). "
+        "The identifier does not undistort, so this exercises lost-in-space robustness to an "
+        "uncalibrated lens.",
+    )
+    parser.add_argument(
+        "--distortion-k2",
+        type=float,
+        default=0.0,
+        help="Brown-Conrady radial distortion coefficient k2 (forward).",
+    )
+    parser.add_argument(
+        "--distortion-p1",
+        type=float,
+        default=0.0,
+        help="Brown-Conrady tangential distortion coefficient p1 (forward).",
+    )
+    parser.add_argument(
+        "--distortion-p2",
+        type=float,
+        default=0.0,
+        help="Brown-Conrady tangential distortion coefficient p2 (forward).",
+    )
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -129,7 +155,11 @@ def main() -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     catalog_rows = ["id,x,y,z"]
-    observation_rows = ["id,u,v"]
+    observation_rows = ["id,u,v,mag"]
+    distortion_active = (
+        args.distortion_k1 != 0.0 or args.distortion_k2 != 0.0
+        or args.distortion_p1 != 0.0 or args.distortion_p2 != 0.0
+    )
     for star_id, direction, mag, u, v in chosen:
         if args.noise_mag_reference is None:
             sigma_px = args.noise_px
@@ -138,9 +168,25 @@ def main() -> int:
                 args.noise_px * (10.0 ** (0.4 * (mag - args.noise_mag_reference))),
                 args.noise_mag_cap_px,
             )
+        if distortion_active:
+            # Forward Brown-Conrady: apply distortion to the ideal pixel projection so the
+            # identifier sees the lens-distorted measurement. Using the same fx/fy/cx/cy as
+            # the projection step is intentional; the lost-in-space identifier does not
+            # consume any calibration knowledge.
+            x_n = (u - args.cx) / args.fx
+            y_n = (v - args.cy) / args.fy
+            r2 = x_n * x_n + y_n * y_n
+            radial = 1.0 + args.distortion_k1 * r2 + args.distortion_k2 * r2 * r2
+            x_t = 2.0 * args.distortion_p1 * x_n * y_n + args.distortion_p2 * (r2 + 2.0 * x_n * x_n)
+            y_t = args.distortion_p1 * (r2 + 2.0 * y_n * y_n) + 2.0 * args.distortion_p2 * x_n * y_n
+            x_d = x_n * radial + x_t
+            y_d = y_n * radial + y_t
+            u = args.fx * x_d + args.cx
+            v = args.fy * y_d + args.cy
         catalog_rows.append(f"{star_id},{direction[0]:.12f},{direction[1]:.12f},{direction[2]:.12f}")
         observation_rows.append(
-            f"{star_id},{u + rng.normal(0.0, sigma_px):.6f},{v + rng.normal(0.0, sigma_px):.6f}"
+            f"{star_id},{u + rng.normal(0.0, sigma_px):.6f},"
+            f"{v + rng.normal(0.0, sigma_px):.6f},{mag:.4f}"
         )
 
     (args.output_dir / "catalog.csv").write_text("\n".join(catalog_rows) + "\n", encoding="utf-8")
@@ -159,6 +205,12 @@ def main() -> int:
         "seed": args.seed,
         "visible_candidates": len(candidates),
         "intrinsics": {"fx": args.fx, "fy": args.fy, "cx": args.cx, "cy": args.cy},
+        "distortion": {
+            "k1": args.distortion_k1,
+            "k2": args.distortion_k2,
+            "p1": args.distortion_p1,
+            "p2": args.distortion_p2,
+        },
     }
     (args.output_dir / "truth.json").write_text(json.dumps(truth, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {args.output_dir} from {len(candidates)} visible catalog stars")

@@ -31,3 +31,10 @@ target_link_libraries(
   PRIVATE astro_project_options
           astro_project_warnings
           astro_localization::localization)
+
+add_executable(build_star_pair_index build_star_pair_index.cpp)
+target_link_libraries(
+  build_star_pair_index
+  PRIVATE astro_project_options
+          astro_project_warnings
+          Eigen3::Eigen)
