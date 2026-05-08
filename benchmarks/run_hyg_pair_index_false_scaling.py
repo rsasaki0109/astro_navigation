@@ -38,6 +38,12 @@ def main() -> int:
         default=0,
         help="Pyramid mode: pass through to the identifier. 0 disables it.",
     )
+    parser.add_argument(
+        "--skip-pkl",
+        action="store_true",
+        help="Skip the pickle dict-of-tuples emission in the build step. Required for very "
+        "large indices (40000+ stars) where the pickle path exhausts memory.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -57,25 +63,27 @@ def main() -> int:
             str(args.min_star_separation_arcsec),
         ]
     )
+    build_command = [
+        sys.executable,
+        "scripts/build_star_pair_index.py",
+        "--catalog",
+        str(index_catalog),
+        "--output",
+        str(index_path),
+        "--limit",
+        str(args.index_size),
+        "--bin-arcsec",
+        "120",
+        "--max-edge-deg",
+        str(args.max_edge_deg),
+    ]
+    if args.skip_pkl:
+        build_command.append("--skip-pkl")
     build_start = time.perf_counter()
-    run(
-        [
-            sys.executable,
-            "scripts/build_star_pair_index.py",
-            "--catalog",
-            str(index_catalog),
-            "--output",
-            str(index_path),
-            "--limit",
-            str(args.index_size),
-            "--bin-arcsec",
-            "120",
-            "--max-edge-deg",
-            str(args.max_edge_deg),
-        ]
-    )
+    run(build_command)
     build_seconds = time.perf_counter() - build_start
-    index_size_mb = index_path.stat().st_size / (1024.0 * 1024.0)
+    sized_path = index_path.with_suffix(".npz") if args.skip_pkl else index_path
+    index_size_mb = sized_path.stat().st_size / (1024.0 * 1024.0)
     index_metadata = json.loads(index_path.with_suffix(".json").read_text(encoding="utf-8"))
 
     rows: list[dict[str, str]] = []

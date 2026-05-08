@@ -54,6 +54,12 @@ def main() -> int:
     parser.add_argument("--bin-arcsec", type=float, default=120.0)
     parser.add_argument("--min-edge-deg", type=float, default=0.2)
     parser.add_argument("--max-edge-deg", type=float, default=80.0)
+    parser.add_argument(
+        "--skip-pkl",
+        action="store_true",
+        help="Emit only the .npz/.json artifacts. Required for very large indices where the "
+        "Python dict-of-tuples pickle representation exhausts memory (e.g. 40000+ stars).",
+    )
     args = parser.parse_args()
 
     stars = load_catalog(args.catalog, args.limit)
@@ -101,45 +107,44 @@ def main() -> int:
     group_ends[:-1] = group_starts[1:]
     group_ends[-1] = sorted_bins.size
 
-    index: dict[int, list[tuple[int, int]]] = {}
-    for slot, bin_key in enumerate(unique_bins):
-        start = int(group_starts[slot])
-        end = int(group_ends[slot])
-        index[int(bin_key)] = list(zip(sorted_lhs[start:end].tolist(), sorted_rhs[start:end].tolist()))
-
     args.output.parent.mkdir(parents=True, exist_ok=True)
     star_ids = [star[0] for star in stars]
     vectors_arr = vectors  # already (N, 3) float64
     magnitudes_arr = np.asarray([star[2] for star in stars], dtype=np.float64)
 
-    payload = {
-        "index_type": "pair_angle_v1",
-        "catalog_path": str(args.catalog),
-        "star_ids": star_ids,
-        "vectors": [star[1].tolist() for star in stars],
-        "magnitudes": [star[2] for star in stars],
-        "bin_arcsec": args.bin_arcsec,
-        "bin_size_rad": bin_size_rad,
-        "min_edge_deg": args.min_edge_deg,
-        "max_edge_deg": args.max_edge_deg,
-        "index": index,
-    }
-    with args.output.open("wb") as handle:
-        pickle.dump(payload, handle)
-
-    sorted_bin_keys = sorted(index.keys())
-    bin_keys_arr = np.asarray(sorted_bin_keys, dtype=np.int32)
-    pair_counts = np.asarray([len(index[k]) for k in sorted_bin_keys], dtype=np.int64)
-    bin_offsets_arr = np.empty(len(sorted_bin_keys) + 1, dtype=np.int64)
+    bin_keys_arr = unique_bins.astype(np.int32, copy=False)
+    pair_counts = (group_ends - group_starts).astype(np.int64, copy=False)
+    bin_offsets_arr = np.empty(bin_keys_arr.size + 1, dtype=np.int64)
     bin_offsets_arr[0] = 0
     np.cumsum(pair_counts, out=bin_offsets_arr[1:])
 
     pair_endpoints_arr = np.empty((int(bin_offsets_arr[-1]), 2), dtype=np.int32)
-    cursor = 0
-    for key in sorted_bin_keys:
-        pairs = index[key]
-        pair_endpoints_arr[cursor : cursor + len(pairs)] = pairs
-        cursor += len(pairs)
+    pair_endpoints_arr[:, 0] = sorted_lhs
+    pair_endpoints_arr[:, 1] = sorted_rhs
+
+    if not args.skip_pkl:
+        index: dict[int, list[tuple[int, int]]] = {}
+        for slot in range(bin_keys_arr.size):
+            start = int(bin_offsets_arr[slot])
+            end = int(bin_offsets_arr[slot + 1])
+            index[int(bin_keys_arr[slot])] = list(
+                zip(sorted_lhs[start:end].tolist(), sorted_rhs[start:end].tolist())
+            )
+        payload = {
+            "index_type": "pair_angle_v1",
+            "catalog_path": str(args.catalog),
+            "star_ids": star_ids,
+            "vectors": [star[1].tolist() for star in stars],
+            "magnitudes": [star[2] for star in stars],
+            "bin_arcsec": args.bin_arcsec,
+            "bin_size_rad": bin_size_rad,
+            "min_edge_deg": args.min_edge_deg,
+            "max_edge_deg": args.max_edge_deg,
+            "index": index,
+        }
+        with args.output.open("wb") as handle:
+            pickle.dump(payload, handle)
+        del index, payload
 
     npz_path = args.output.with_suffix(".npz")
     np.savez_compressed(
@@ -161,11 +166,11 @@ def main() -> int:
         "catalog_path": str(args.catalog),
         "stars": len(stars),
         "pairs": pair_count,
-        "bins": len(index),
+        "bins": int(bin_keys_arr.size),
         "bin_arcsec": args.bin_arcsec,
         "min_edge_deg": args.min_edge_deg,
         "max_edge_deg": args.max_edge_deg,
-        "pkl_path": str(args.output),
+        "pkl_path": None if args.skip_pkl else str(args.output),
         "npz_path": str(npz_path),
     }
     args.output.with_suffix(".json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")

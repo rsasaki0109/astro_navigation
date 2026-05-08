@@ -16,7 +16,8 @@ Numbers below are the current best on the corresponding benchmark. Full per-iter
 | Module | Benchmark | Result |
 | --- | --- | --- |
 | Star tracker attitude | 30 stars synthetic, 0.1 px noise | mean attitude error **0.00459 deg** |
-| Lost-in-space (HYG mag≤8, 32k indexed stars) | 32 true + up to 12 false detections, 0.1 px noise, `--pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120` | **64/64 correct, 0 wrong**, query 49-55 s, build 430 s, .npz 667 MB |
+| Lost-in-space (HYG mag≤8, 40k indexed stars — catalog density ceiling) | 32 true + up to 12 false detections, 0.1 px noise, `--pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120 --skip-pkl` | **64/64 correct, 0 wrong**, query 61-94 s, build 277 s, .npz 1016 MB, 332 M pairs |
+| Lost-in-space high-false-rate (HYG mag≤8, 16k indexed stars) | 32 true + 16/24/32 false detections (33-50% false rate), ps=6 | **64/64 correct, 0 wrong** at every level, query ~6 s |
 | Lunar VO (POLAR Traverse1, L 50 ms, monocular SIFT) | 11 frames, Sim(3) alignment | ATE RMSE **0.0186 m**, 11/11 frames OK |
 | Lunar VO (POLAR Traverse1, L 50 ms, rectified stereo + PnP) | 11 frames, SE(3) | ATE RMSE **0.0650 m**, path 10.18 m vs 9.98 m GT |
 
@@ -62,10 +63,10 @@ python3 scripts/convert_star_catalog.py \
 
 python3 scripts/build_star_pair_index.py \
   --catalog datasets/star_catalogs/hyg-v42/converted/hyg_v42_mag8p0_unit.csv \
-  --output outputs/hyg_pair_index_32000.pkl --limit 32000
+  --output outputs/hyg_pair_index_40000.pkl --limit 40000 --skip-pkl
 
 python3 scripts/identify_stars_with_pair_index.py \
-  --index outputs/hyg_pair_index_32000.npz \
+  --index outputs/hyg_pair_index_40000.npz \
   --observations <observations_unlabeled.csv> \
   --output <assignments.csv> \
   --pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120 \
