@@ -69,6 +69,19 @@ def main() -> int:
         default=20.0,
         help="Forward to drop_star_ids.py: Gaussian std-dev for near-star false detections.",
     )
+    parser.add_argument(
+        "--pyramid-restarts",
+        type=int,
+        default=0,
+        help="Forward to identify_stars_with_pair_index.py: number of additional pyramid attempts "
+        "with shuffled observations when assignments fall below --confidence-fraction.",
+    )
+    parser.add_argument(
+        "--confidence-fraction",
+        type=float,
+        default=0.5,
+        help="Forward to identify_stars_with_pair_index.py: restart-pyramid threshold.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -168,6 +181,17 @@ def main() -> int:
             ]
             if args.pyramid_size > 0:
                 identify_command.extend(["--pyramid-size", str(args.pyramid_size)])
+            if args.pyramid_restarts > 0:
+                identify_command.extend(
+                    [
+                        "--pyramid-restarts",
+                        str(args.pyramid_restarts),
+                        "--confidence-fraction",
+                        f"{args.confidence_fraction:.6f}",
+                        "--pyramid-restart-seed",
+                        str(16000 + trial),
+                    ]
+                )
             query_start = time.perf_counter()
             run(identify_command)
             query_seconds = time.perf_counter() - query_start

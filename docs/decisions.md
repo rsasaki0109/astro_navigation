@@ -587,3 +587,39 @@ Consequences:
   continue to work.
 - Pure idealized correctness benchmarks (Gaussian-noise-only synthetic) remain valid as
   algorithmic regression baselines but no longer count as the headline robustness statement.
+
+## 2026-05-08: Pyramid Restart Closes The Realism Robustness Gap
+
+Decision: add `--pyramid-restarts` and `--confidence-fraction` to
+`identify_stars_with_pair_index.py`. After each pyramid+verify attempt, if `assigned/observations`
+falls below `--confidence-fraction`, shuffle the observation permutation and retry, up to
+`--pyramid-restarts` extra attempts. The attempt with the most verified assignments wins. Default
+`--pyramid-restarts=0` preserves prior behavior bit-exactly.
+
+Reasoning: the prior decision diagnosed a ~17% per-trial catastrophic failure rate at 37.5% false
+detection rate under realistic camera effects, and tracked the failure to confusion attitudes
+that lock the matcher onto wrong assignments because the correct triple is not even in the
+candidate set when the first 6 observations contain too many false detections. Re-running the
+same trials=6 sweep at 16000 mag&le;8 ps=6 with `--pyramid-restarts 3 --confidence-fraction 0.5`
+recovered 192/192 correct / 0 wrong at every false count including false=12. The previously
+failing trial at false=12 used 2 attempts and the winning attempt was index 1 (the first
+restart); the other five trials succeeded on attempt 0 with no restart cost. Average query at
+false=12 actually dropped slightly because the failing trial's cost (~5 s cand_gen) replaces a
+larger penalty from running ps=8 (~6 s cand_gen) without restarts.
+
+Consequences:
+
+- ps=6 with restart=3 is now the recommended operational configuration under realism. ps=8 is
+  no longer needed; the larger pyramid does not fix confusion-attitude lock-in.
+- The benchmark forwards `--pyramid-restarts` and `--confidence-fraction`. When they are 0
+  (default), no metadata-visible change occurs in existing fixtures.
+- The headline lost-in-space statement in `README.md` is now `192/192 correct under realistic
+  camera effects (mag-weighted detection + 50% near-real false positives)` at 16000 mag&le;8,
+  which matches the idealized baseline and is the first realism-validated correctness result.
+- Statistical power is still limited (6 trials per setting). A future trials=24 run would tighten
+  the upper bound on residual failure rate from "&lt;17%" (the no-restart baseline) to
+  "&lt;~5%" (95% CI under 0/24 observed failures). Defer until needed.
+- Future algorithmic options (top-K verified hypotheses, predicted-vs-observed match-count
+  consistency check, attitude rejection on low-magnitude predicted-but-unobserved counts) remain
+  in PLAN as a deeper hardening step. Restart by itself is not a guarantee against pathological
+  fixtures, but it is the minimum-invasive fix that recovers correctness in this regime.
