@@ -10,6 +10,25 @@ small so that experiments converge quickly, and the Python prototypes live along
 
 ## Demo
 
+### TRN trajectory — frame-by-frame position recovery
+
+A 9-frame descent trajectory over Tycho central peak (38 → 30 km altitude,
+3 km lateral motion) showing TRN locking position from a single nadir image
+each frame. The recovered estimates accumulate on the top-down ortho map as
+green dots; the truth path is the yellow line; the red bar visualises the
+current frame's position error.
+
+![TRN trajectory demo: per-frame position recovery on a descent over Tycho central peak. LEFT = top-down ortho map with truth path (yellow) and recovered positions (green). RIGHT TOP = nadir rover view at the current altitude. RIGHT BOTTOM = telemetry HUD with position truth, recovered, current error, and running mean over successful PnP frames](docs/figures/trn_trajectory_demo.gif)
+
+No inertial prior, no temporal filter — every frame solves PnP from scratch
+on the rover image vs the LRO ortho. **9/9 frames produce a position
+estimate**, 8/9 within 100 m, current pipeline mean ~150 m on this trajectory.
+
+```bash
+python3 scripts/render_trn_trajectory_gif.py \
+  --output docs/figures/trn_trajectory_demo.gif
+```
+
 ### Lunar landing mission — star tracker + TRN, end-to-end
 
 The two localisation modules running together as a single mission story —
