@@ -56,34 +56,44 @@ def generate_visible_case(
     noise_px: float,
     seed: int,
     max_attempts: int,
+    limiting_magnitude: float | None = None,
+    mag_softness: float = 0.5,
 ) -> None:
     rng = random.Random(seed)
     for attempt in range(max_attempts):
         yaw = rng.uniform(0.0, 360.0)
         pitch = rng.uniform(-70.0, 70.0)
         roll = rng.uniform(-30.0, 30.0)
-        if try_run(
-            [
-                sys.executable,
-                "scripts/generate_star_tracker_observations_from_catalog.py",
-                "--catalog",
-                str(catalog),
-                "--output-dir",
-                str(case_dir),
-                "--stars",
-                str(stars),
-                "--noise-px",
-                str(noise_px),
-                "--seed",
-                str(seed + attempt),
-                "--yaw-deg",
-                f"{yaw:.9f}",
-                "--pitch-deg",
-                f"{pitch:.9f}",
-                "--roll-deg",
-                f"{roll:.9f}",
-            ]
-        ):
+        command = [
+            sys.executable,
+            "scripts/generate_star_tracker_observations_from_catalog.py",
+            "--catalog",
+            str(catalog),
+            "--output-dir",
+            str(case_dir),
+            "--stars",
+            str(stars),
+            "--noise-px",
+            str(noise_px),
+            "--seed",
+            str(seed + attempt),
+            "--yaw-deg",
+            f"{yaw:.9f}",
+            "--pitch-deg",
+            f"{pitch:.9f}",
+            "--roll-deg",
+            f"{roll:.9f}",
+        ]
+        if limiting_magnitude is not None:
+            command.extend(
+                [
+                    "--limiting-magnitude",
+                    f"{limiting_magnitude:.6f}",
+                    "--mag-softness",
+                    f"{mag_softness:.6f}",
+                ]
+            )
+        if try_run(command):
             return
     raise RuntimeError(f"could not generate {stars} visible stars from {catalog} after {max_attempts} attempts")
 

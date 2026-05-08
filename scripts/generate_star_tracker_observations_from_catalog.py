@@ -30,6 +30,19 @@ def main() -> int:
     parser.add_argument("--yaw-deg", type=float, default=0.0)
     parser.add_argument("--pitch-deg", type=float, default=0.0)
     parser.add_argument("--roll-deg", type=float, default=0.0)
+    parser.add_argument(
+        "--limiting-magnitude",
+        type=float,
+        default=None,
+        help="Magnitude-aware probabilistic detection. p(detect) = 1 / (1 + exp((mag - "
+        "limiting_magnitude) / mag_softness)). Default disabled — falls back to top-3N + uniform pick.",
+    )
+    parser.add_argument(
+        "--mag-softness",
+        type=float,
+        default=0.5,
+        help="Sigmoid width for --limiting-magnitude probabilistic detection.",
+    )
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -53,10 +66,22 @@ def main() -> int:
     if len(candidates) < args.stars:
         raise RuntimeError(f"only {len(candidates)} catalog stars are visible; need {args.stars}")
 
-    candidates.sort(key=lambda item: item[2])
-    selected = candidates[: max(args.stars * 3, args.stars)]
-    chosen_indices = rng.choice(len(selected), size=args.stars, replace=False)
-    chosen = [selected[int(index)] for index in chosen_indices]
+    if args.limiting_magnitude is not None:
+        magnitudes_arr = np.asarray([candidate[2] for candidate in candidates], dtype=float)
+        detection_probs = 1.0 / (1.0 + np.exp((magnitudes_arr - args.limiting_magnitude) / args.mag_softness))
+        weights = detection_probs / detection_probs.sum()
+        if (detection_probs > 0.0).sum() < args.stars:
+            raise RuntimeError(
+                f"only {(detection_probs > 0.0).sum()} candidate stars have nonzero detection probability"
+                f" at limiting_magnitude={args.limiting_magnitude}, mag_softness={args.mag_softness}; need {args.stars}"
+            )
+        chosen_indices = rng.choice(len(candidates), size=args.stars, replace=False, p=weights)
+        chosen = [candidates[int(index)] for index in chosen_indices]
+    else:
+        candidates.sort(key=lambda item: item[2])
+        selected = candidates[: max(args.stars * 3, args.stars)]
+        chosen_indices = rng.choice(len(selected), size=args.stars, replace=False)
+        chosen = [selected[int(index)] for index in chosen_indices]
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     catalog_rows = ["id,x,y,z"]
