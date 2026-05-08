@@ -24,3 +24,10 @@ target_link_libraries(
           astro_project_warnings
           astro_localization::core
           astro_localization::localization)
+
+add_executable(lost_in_space_pair_id lost_in_space_pair_id.cpp)
+target_link_libraries(
+  lost_in_space_pair_id
+  PRIVATE astro_project_options
+          astro_project_warnings
+          astro_localization::localization)

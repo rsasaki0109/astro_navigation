@@ -1,6 +1,6 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-08 (5-axis realism stack: 767/768 correct with restart=3; hot-pixel false-positive axis added; 2/24 trials hit the 4-attempt restart-budget ceiling, suggesting a small headroom margin)
+Last updated: 2026-05-09 (C++ port started: binary pair index loader + apps/lost_in_space_pair_id CLI verified on 500 / 16000 fixtures with bit-exact metadata vs the Python build)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -728,10 +728,15 @@ The next handoff should pick from the following, in roughly decreasing value:
    int32 buffers (peaked ~30 GB at 60k; 80k extrapolates to ~50-55 GB on a 62 GB box).
    Streaming-merge build is the next memory-side fix if needed.
 
-3. **Begin the C++ port of the pair-index identifier.** The Python prototype is now realism-
-   validated. Pick `identify_stars_with_pair_index.py` (the hot path) first, target zero-copy
-   `.npz` loading via Eigen/xtensor, keep the Python build script as the source of truth for
-   `.npz` index format, and port the restart loop alongside the pyramid+verify path.
+3. **Continue the C++ port of the pair-index identifier.** Skeleton landed 2026-05-09: a
+   flat zlib-free binary format (`--write-bin` on the Python build), a
+   `localization::PairIndex` struct, `load_pair_index_bin()`, and `apps/lost_in_space_pair_id`
+   CLI that prints metadata matching the Python build bit-exactly. Next sessions:
+   - Port `candidate_mappings()` (3-way merge over pair lists + Eigen einsum-equivalent for
+     predicted edges) — the hot path.
+   - Port `verify_rotation()` (Wahba/Kabsch via Eigen JacobiSVD + bulk dot product).
+   - Port the pyramid + restart loop. Compare the C++ assignments output against the Python
+     reference on the same fixtures (500 / 16000) for bit-exact correctness.
 
 4. **More realism axes.** Done so far: probabilistic mag-weighted detection, near-real-star
    false positives, magnitude-dependent centroid noise. Open: optical distortion (radial /
