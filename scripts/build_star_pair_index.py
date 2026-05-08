@@ -9,9 +9,70 @@ import itertools
 import json
 import math
 import pickle
+import struct
 from pathlib import Path
 
 import numpy as np
+
+
+_BIN_MAGIC = b"ASTROIDX"
+_BIN_VERSION = 1
+
+
+def write_pair_index_bin(
+    path: Path,
+    *,
+    star_ids: list[str],
+    vectors: np.ndarray,
+    magnitudes: np.ndarray,
+    bin_keys: np.ndarray,
+    bin_offsets: np.ndarray,
+    pair_endpoints: np.ndarray,
+    bin_arcsec: float,
+    bin_size_rad: float,
+    min_edge_deg: float,
+    max_edge_deg: float,
+) -> None:
+    """Write the pair index in a flat binary format readable from C++ (no zlib).
+
+    Layout:
+        magic[8] = b"ASTROIDX"
+        version: uint32
+        n_stars: int64, n_bins: int64, n_pairs: int64
+        bin_arcsec / bin_size_rad / min_edge_deg / max_edge_deg: float64 (×4)
+        4 bytes padding (header total 72 bytes)
+        vectors: n_stars × 3 × float64
+        magnitudes: n_stars × float64
+        bin_keys: n_bins × int32
+        bin_offsets: (n_bins + 1) × int64
+        pair_endpoints: n_pairs × 2 × int32
+        star_ids_blob_size: int64
+        star_ids_blob: concatenation of (uint16 length-LE, utf-8 bytes) × n_stars
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    n_stars = len(star_ids)
+    n_bins = int(bin_keys.size)
+    n_pairs = int(pair_endpoints.shape[0])
+    blob = bytearray()
+    for star_id in star_ids:
+        encoded = star_id.encode("utf-8")
+        if len(encoded) > 0xFFFF:
+            raise ValueError(f"star id too long for uint16 length prefix: {star_id!r}")
+        blob.extend(struct.pack("<H", len(encoded)))
+        blob.extend(encoded)
+    with path.open("wb") as handle:
+        handle.write(_BIN_MAGIC)
+        handle.write(struct.pack("<I", _BIN_VERSION))
+        handle.write(struct.pack("<qqq", n_stars, n_bins, n_pairs))
+        handle.write(struct.pack("<dddd", bin_arcsec, bin_size_rad, min_edge_deg, max_edge_deg))
+        handle.write(b"\x00\x00\x00\x00")  # pad to 72-byte header
+        np.ascontiguousarray(vectors, dtype=np.float64).tofile(handle)
+        np.ascontiguousarray(magnitudes, dtype=np.float64).tofile(handle)
+        np.ascontiguousarray(bin_keys, dtype=np.int32).tofile(handle)
+        np.ascontiguousarray(bin_offsets, dtype=np.int64).tofile(handle)
+        np.ascontiguousarray(pair_endpoints, dtype=np.int32).tofile(handle)
+        handle.write(struct.pack("<q", len(blob)))
+        handle.write(bytes(blob))
 
 
 def normalize(vector: np.ndarray) -> np.ndarray:
@@ -59,6 +120,12 @@ def main() -> int:
         action="store_true",
         help="Emit only the .npz/.json artifacts. Required for very large indices where the "
         "Python dict-of-tuples pickle representation exhausts memory (e.g. 40000+ stars).",
+    )
+    parser.add_argument(
+        "--write-bin",
+        action="store_true",
+        help="Also dual-write a flat binary `.bin` next to the `.npz` for zero-dependency C++ "
+        "consumption (no zlib required).",
     )
     args = parser.parse_args()
 
@@ -171,6 +238,22 @@ def main() -> int:
         pair_endpoints=pair_endpoints_arr,
     )
 
+    bin_path = args.output.with_suffix(".bin") if args.write_bin else None
+    if args.write_bin:
+        write_pair_index_bin(
+            bin_path,
+            star_ids=star_ids,
+            vectors=vectors_arr,
+            magnitudes=magnitudes_arr,
+            bin_keys=bin_keys_arr,
+            bin_offsets=bin_offsets_arr,
+            pair_endpoints=pair_endpoints_arr,
+            bin_arcsec=args.bin_arcsec,
+            bin_size_rad=bin_size_rad,
+            min_edge_deg=args.min_edge_deg,
+            max_edge_deg=args.max_edge_deg,
+        )
+
     metadata = {
         "catalog_path": str(args.catalog),
         "stars": len(stars),
@@ -181,6 +264,7 @@ def main() -> int:
         "max_edge_deg": args.max_edge_deg,
         "pkl_path": None if args.skip_pkl else str(args.output),
         "npz_path": str(npz_path),
+        "bin_path": str(bin_path) if bin_path is not None else None,
     }
     args.output.with_suffix(".json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(metadata, indent=2))
