@@ -30,12 +30,12 @@ Eigen::Isometry3d toPreviousCurrent(const cv::Mat& rvec, const cv::Mat& tvec) {
 }
 
 std::vector<cv::DMatch> ratioMatches(const cv::Mat& query_descriptors, const cv::Mat& train_descriptors,
-                                     const double ratio_test) {
+                                     const double ratio_test, const int norm) {
   if (query_descriptors.empty() || train_descriptors.empty()) {
     return {};
   }
 
-  cv::BFMatcher matcher(cv::NORM_HAMMING);
+  cv::BFMatcher matcher(norm);
   std::vector<std::vector<cv::DMatch>> knn_matches;
   matcher.knnMatch(query_descriptors, train_descriptors, knn_matches, 2);
 
@@ -56,9 +56,14 @@ std::vector<cv::DMatch> ratioMatches(const cv::Mat& query_descriptors, const cv:
 
 StereoVisualOdometry::StereoVisualOdometry(StereoCameraModel camera,
                                            StereoVisualOdometryOptions options)
-    : camera_(std::move(camera)), options_(options), detector_(cv::ORB::create(options.max_features)) {
+    : camera_(std::move(camera)), options_(options) {
   if (!camera_.left.valid() || !camera_.right.valid()) {
     throw std::invalid_argument("left and right camera intrinsics must be valid");
+  }
+  if (options_.feature_type == FeatureType::kOrb) {
+    detector_ = cv::ORB::create(options_.max_features);
+  } else {
+    detector_ = cv::SIFT::create(options_.max_features);
   }
 }
 
@@ -71,6 +76,14 @@ StereoFrameEstimate StereoVisualOdometry::process(const cv::Mat& left_gray, cons
     motion = estimateMotion(*previous_frame_, current);
     if (motion.success) {
       T_world_camera_ = T_world_camera_ * motion.T_previous_current;
+    } else if (last_good_frame_.has_value() &&
+               last_good_frame_->valid_3d_point_count > previous_frame_->valid_3d_point_count) {
+      const StereoMotionEstimate fallback = estimateMotion(*last_good_frame_, current);
+      if (fallback.success) {
+        motion = fallback;
+        motion.message = "ok (fallback to last good)";
+        T_world_camera_ = T_world_at_last_good_ * motion.T_previous_current;
+      }
     }
   } else {
     motion.success = true;
@@ -79,6 +92,10 @@ StereoFrameEstimate StereoVisualOdometry::process(const cv::Mat& left_gray, cons
     motion.message = "initialized";
   }
 
+  if (motion.success) {
+    last_good_frame_ = current;
+    T_world_at_last_good_ = T_world_camera_;
+  }
   previous_frame_ = std::move(current);
 
   StereoFrameEstimate estimate;
@@ -102,8 +119,9 @@ StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(const c
   const Features right = extract(right_gray);
   frame.left_points_m.resize(frame.left.keypoints.size());
 
+  const int norm = options_.feature_type == FeatureType::kOrb ? cv::NORM_HAMMING : cv::NORM_L2;
   std::vector<cv::DMatch> stereo_matches =
-      ratioMatches(frame.left.descriptors, right.descriptors, options_.ratio_test);
+      ratioMatches(frame.left.descriptors, right.descriptors, options_.ratio_test, norm);
   std::erase_if(stereo_matches, [&](const cv::DMatch& match) {
     const cv::Point2f& left_point = frame.left.keypoints[static_cast<std::size_t>(match.queryIdx)].pt;
     const cv::Point2f& right_point = right.keypoints[static_cast<std::size_t>(match.trainIdx)].pt;
@@ -161,6 +179,27 @@ StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(const c
         cv::Point3f(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z));
     ++frame.valid_3d_point_count;
   }
+
+  frame.depth_features.keypoints.reserve(static_cast<std::size_t>(frame.valid_3d_point_count));
+  frame.depth_points_m.reserve(static_cast<std::size_t>(frame.valid_3d_point_count));
+  std::vector<int> depth_indices;
+  depth_indices.reserve(static_cast<std::size_t>(frame.valid_3d_point_count));
+  for (std::size_t i = 0; i < frame.left.keypoints.size(); ++i) {
+    if (frame.left_points_m[i].has_value()) {
+      frame.depth_features.keypoints.push_back(frame.left.keypoints[i]);
+      frame.depth_points_m.push_back(*frame.left_points_m[i]);
+      depth_indices.push_back(static_cast<int>(i));
+    }
+  }
+  if (!depth_indices.empty()) {
+    frame.depth_features.descriptors.create(static_cast<int>(depth_indices.size()),
+                                            frame.left.descriptors.cols,
+                                            frame.left.descriptors.type());
+    for (std::size_t row = 0; row < depth_indices.size(); ++row) {
+      frame.left.descriptors.row(depth_indices[row]).copyTo(
+          frame.depth_features.descriptors.row(static_cast<int>(row)));
+    }
+  }
   return frame;
 }
 
@@ -170,8 +209,10 @@ StereoMotionEstimate StereoVisualOdometry::estimateMotion(const StereoFrame& pre
   motion.stereo_match_count = current.stereo_match_count;
   motion.valid_3d_point_count = current.valid_3d_point_count;
 
+  const int norm = options_.feature_type == FeatureType::kOrb ? cv::NORM_HAMMING : cv::NORM_L2;
   const std::vector<cv::DMatch> temporal_matches =
-      ratioMatches(previous.left.descriptors, current.left.descriptors, options_.ratio_test);
+      ratioMatches(previous.depth_features.descriptors, current.left.descriptors,
+                   options_.ratio_test, norm);
   motion.temporal_match_count = static_cast<int>(temporal_matches.size());
 
   std::vector<cv::Point3f> object_points;
@@ -179,11 +220,7 @@ StereoMotionEstimate StereoVisualOdometry::estimateMotion(const StereoFrame& pre
   object_points.reserve(temporal_matches.size());
   image_points.reserve(temporal_matches.size());
   for (const auto& match : temporal_matches) {
-    const auto& point = previous.left_points_m[static_cast<std::size_t>(match.queryIdx)];
-    if (!point.has_value()) {
-      continue;
-    }
-    object_points.push_back(*point);
+    object_points.push_back(previous.depth_points_m[static_cast<std::size_t>(match.queryIdx)]);
     image_points.push_back(current.left.keypoints[static_cast<std::size_t>(match.trainIdx)].pt);
   }
 

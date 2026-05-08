@@ -36,6 +36,8 @@ void printUsage() {
                "--fx <fx> --fy <fy> --cx <cx> --cy <cy> "
                "--right-fx <fx> --right-fy <fy> --right-cx <cx> --right-cy <cy> "
                "--baseline <meters> [--trajectory outputs/stereo.tum] "
+               "[--feature orb|sift] [--max-features <n>] "
+               "[--ratio-test 0.75] [--pnp-reproj-error 4.0] "
                "[--max-stereo-y-diff <px>] [--min-disparity <px>] "
                "[--clahe] [--clahe-clip-limit 2.0] [--clahe-tile-grid-size 8]\n";
 }
@@ -127,6 +129,14 @@ Args parseArgs(const int argc, char** argv) {
       args.camera.right.cy = parseDouble(requireValue(key), key);
     } else if (key == "--baseline") {
       args.camera.t_right_left = cv::Vec3d(-parseDouble(requireValue(key), key), 0.0, 0.0);
+    } else if (key == "--feature") {
+      args.vo.feature_type = astro::localization::parseFeatureType(requireValue(key));
+    } else if (key == "--max-features") {
+      args.vo.max_features = parseInt(requireValue(key), key);
+    } else if (key == "--ratio-test") {
+      args.vo.ratio_test = parseDouble(requireValue(key), key);
+    } else if (key == "--pnp-reproj-error") {
+      args.vo.pnp_reprojection_error_px = parseDouble(requireValue(key), key);
     } else if (key == "--max-depth") {
       args.vo.max_depth_m = parseDouble(requireValue(key), key);
     } else if (key == "--max-stereo-y-diff") {

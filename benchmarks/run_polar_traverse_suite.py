@@ -53,7 +53,9 @@ def append_summary_row(rows: list[dict[str, str]], sequence: str, method: str, a
     )
 
 
-def rectified_stereo_command(prepared: Path, metadata: dict, *, clahe: bool) -> list[str]:
+def rectified_stereo_command(prepared: Path, metadata: dict, *, clahe: bool,
+                              feature: str, trajectory_name: str,
+                              ratio_test: float | None = None) -> list[str]:
     rectified = metadata["rectified"]
     left = rectified["left"]
     right = rectified["right"]
@@ -61,6 +63,8 @@ def rectified_stereo_command(prepared: Path, metadata: dict, *, clahe: bool) -> 
         "build/apps/stereo_visual_odometry",
         "--pairs",
         str(rectified["stereo_pairs_rectified"]),
+        "--feature",
+        feature,
         "--fx",
         str(left["fx"]),
         "--fy",
@@ -84,10 +88,12 @@ def rectified_stereo_command(prepared: Path, metadata: dict, *, clahe: bool) -> 
         "--min-disparity",
         "2",
         "--trajectory",
-        str(prepared / "trajectory_stereo_pnp_rectified.tum"),
+        str(prepared / trajectory_name),
     ]
     if clahe:
         command.extend(["--clahe", "--clahe-clip-limit", "2.0", "--clahe-tile-grid-size", "8"])
+    if ratio_test is not None:
+        command.extend(["--ratio-test", str(ratio_test)])
     return command
 
 
@@ -144,7 +150,20 @@ def main() -> int:
     )
     parser.add_argument("--skip-mono", action="store_true")
     parser.add_argument("--skip-stereo", action="store_true")
+    parser.add_argument(
+        "--stereo-features",
+        nargs="+",
+        default=["orb"],
+        choices=["orb", "sift"],
+        help="stereo PnP feature detector(s); use 'orb sift' to compare both",
+    )
     parser.add_argument("--clahe", action="store_true", help="enable CLAHE preprocessing in VO apps")
+    parser.add_argument(
+        "--stereo-ratio-test",
+        type=float,
+        default=None,
+        help="override stereo PnP --ratio-test (default: app default 0.75)",
+    )
     args = parser.parse_args()
 
     exposures = args.exposures_ms if args.exposures_ms else [args.exposure_ms]
@@ -206,28 +225,37 @@ def main() -> int:
                 append_summary_row(rows, sequence, "SIFT essential", "sim3", mono_dir / "eval_sift.json")
 
             if not args.skip_stereo:
-                stereo_log = prepared / "stereo_pnp_rectified_log.csv"
-                run(rectified_stereo_command(prepared, metadata, clahe=args.clahe), stdout=stereo_log)
-                stereo_eval = prepared / "eval_stereo_pnp_rectified_se3.json"
-                run(
-                    [
-                        sys.executable,
-                        "scripts/evaluate_trajectory.py",
-                        "--estimated",
-                        str(prepared / "trajectory_stereo_pnp_rectified.tum"),
-                        "--ground-truth",
-                        str(pose_subset),
-                        "--vo-log",
-                        str(stereo_log),
-                        "--alignment",
-                        "se3",
-                        "--output-json",
-                        str(stereo_eval),
-                        "--aligned-csv",
-                        str(prepared / "aligned_stereo_pnp_rectified_se3.csv"),
-                    ]
-                )
-                append_summary_row(rows, sequence, "ORB rectified stereo PnP", "se3", stereo_eval)
+                for feature in args.stereo_features:
+                    stereo_log = prepared / f"stereo_pnp_rectified_{feature}_log.csv"
+                    trajectory_name = f"trajectory_stereo_pnp_rectified_{feature}.tum"
+                    run(
+                        rectified_stereo_command(
+                            prepared, metadata, clahe=args.clahe,
+                            feature=feature, trajectory_name=trajectory_name,
+                            ratio_test=args.stereo_ratio_test),
+                        stdout=stereo_log,
+                    )
+                    stereo_eval = prepared / f"eval_stereo_pnp_rectified_{feature}_se3.json"
+                    run(
+                        [
+                            sys.executable,
+                            "scripts/evaluate_trajectory.py",
+                            "--estimated",
+                            str(prepared / trajectory_name),
+                            "--ground-truth",
+                            str(pose_subset),
+                            "--vo-log",
+                            str(stereo_log),
+                            "--alignment",
+                            "se3",
+                            "--output-json",
+                            str(stereo_eval),
+                            "--aligned-csv",
+                            str(prepared / f"aligned_stereo_pnp_rectified_{feature}_se3.csv"),
+                        ]
+                    )
+                    method_label = f"{feature.upper()} rectified stereo PnP"
+                    append_summary_row(rows, sequence, method_label, "se3", stereo_eval)
 
             write_summary_csv(args.output_dir / "summary.csv", rows)
             write_summary_md(args.output_dir / "summary.md", rows)
