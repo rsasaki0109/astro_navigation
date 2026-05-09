@@ -10,6 +10,33 @@ small so that experiments converge quickly, and the Python prototypes live along
 
 ## Demo
 
+### Lunar landing mission — star tracker + TRN, end-to-end
+
+The two localisation modules running together as a single mission story —
+six descent moments from orbital insertion (400 km) down to touchdown burn
+(30 km), with the **star tracker** confirming attitude against a different
+recognisable constellation each frame and the **terrain-relative navigation**
+recovering position from real LRO/LOLA imagery as the camera samples finer
+WAC ortho + LOLA DEM tiles on the way down.
+
+![Mission demo: star tracker (constellation IDs left) + TRN (lunar nadir camera right) + telemetry HUD across six descent moments from 400 km orbital insertion to 30 km touchdown burn](docs/figures/mission_demo.gif)
+
+Both modules run independently per frame (no inertial prior, no temporal
+filtering — every frame solves attitude from a single star image and
+position from a single nadir image). Per-frame attitude is rendered into
+the star image, identified through `apps/lost_in_space_pair_id`, and the
+recovered ids drive the cyan constellation lines + gold star labels. TRN
+uses `scripts/lro_trn_demo.py` end-to-end: WAC tile fetch → LOLA crop →
+forward ray-march → SIFT + AP3P PnP. The telemetry HUD shows the truth-
+vs-recovered position with the absolute error in metres; the altitude bar
+falls from 100 % at orbit to ~7 % at terminal.
+
+```bash
+python3 scripts/render_mission_demo_gif.py \
+  --index-bin <path-to>/hyg_pair_index_full.bin \
+  --output docs/figures/mission_demo.gif
+```
+
 ### Lost-in-space star identification
 
 A satellite that just powered on doesn't know where it's looking. *Lost-in-space* star
