@@ -1,6 +1,23 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-09 (C++ identifier port complete: candidate_mappings, verify_rotation,
+Last updated: 2026-05-09 (TRN cycle 3 landed: real LRO WAC mosaic + LOLA LDEM
+adapter via NASA Trek WMTS + PDS Geosciences direct download. New script
+`scripts/lro_trn_demo.py` reuses the cycle-2 forward render + AP3P PnP on real
+imagery. 6-target sweep at 400 km orbital descent / z=5 ortho: all six (Apollo
+11/12/15/17, Tycho, Copernicus) recover position to **179-1383 m on a ~500 km
+mosaic**, 0 false positives. Tycho is the cleanest at 179 m / 24 inliers /
+113 matches; Mare Tranquillitatis (Apollo 11) the hardest at 1383 m because
+the dark mare has few SIFT-discriminable features. Empirical altitude
+sensitivity sweep recorded in the script docstring: rover-view sample
+distance must stay within ~2x of WAC ortho sample distance or SIFT
+scale-space stops matching. TRN cycle 2 landed: dropped warpPerspective for
+heightmap forward ray-march, fixed rotation convention so pitch=-90 actually looks
+straight down, swapped homography decomposition for cv2.solvePnPRansac on
+(world_xyz_with_height, rover_pixel) correspondences. Defaults are now near-nadir
+top-down at altitude 100 m / 800 m x 800 m ortho; 10-seed sweep shows 8/10 success
+at 0.57-2.88 m position error, 2/10 cleanly rejected by the plausibility gate, no
+false positives. Tilted views > 20 deg from nadir are out of envelope for the
+current SIFT-based path. C++ identifier port complete: candidate_mappings, verify_rotation,
 and pyramid+restart loop all ported. apps/lost_in_space_pair_id produces byte-exact assignments
 CSVs vs the Python reference on 500 / 2000 / 16000 fixtures, both default and pyramid modes.
 CI bit-exact smoke landed. Brown-Conrady distortion realism axis added; identifier breaks
@@ -14,7 +31,24 @@ explicit flags still override the JSON values. Edge-biased false-positive realis
 added; surfaces a restart-fixable single-pass failure at 44% false rate.
 Observation-side magnitude axis added end-to-end; mag prior resolves a
 fixture-specific 1-wrong baseline AND fixes the edge=12 single-pass failure
-without restart.)
+without restart. **SIFT stereo PnP added to `apps/stereo_visual_odometry`**:
+Traverse4-6 50 ms CLAHE jumps from 15/33 → 25/33 frames OK and mean ATE drops
+2.16 m → 0.90 m vs the ORB baseline, see
+`outputs/polar_view1_suite_clahe_t4_t6_sift/summary.md`. **Lowe ratio test exposed
+via `--ratio-test`**: at 0.85 (vs default 0.75) on the same SIFT path,
+T4-T6 jumps further to **32/33** with mean ATE 0.187 m, and T1-T3 stay at
+33/33 with ATE 0.028-0.043 m → **65/66 across all six POLAR Traverses**.
+**Sky-cell verification cone landed**: `--fov-radius-deg` opt-in on
+`identify_stars_with_pair_index.py` pre-prunes `verify_rotation` to stars in
+the FOV cone. Bit-exact CSV vs baseline; verify -72% at 60000 mag&le;9
+(0.451 → 0.127 s) and -51% at 16000 mag&le;8. Infrastructure for the bigger
+cell-partitioned pair index work to come. **Sky-cell phase 2 landed**:
+`scripts/build_star_pair_index.py` now embeds `sky_cell_ids` (48 cells); new
+`--cell-compactness-deg` opt-in drops merged catalog triangles whose cell
+spans exceed the threshold. 60k mag&le;9 at 50°: candidate_hypotheses
+**701k → 437k (-38%)**, 32/32 correct. Honest finding: cand_gen wall-time
+unchanged because the filter is post-merge — phase 3 (re-key pair index by
+`(edge_bin, cell_pair)`) is the actual lever for the 250 s headline.)
 
 This file is a handoff note for the next coding agent. The project direction has shifted from generic
 Earth-style rover visual odometry toward space-native localization, especially star tracker / lost-in-space
@@ -439,6 +473,84 @@ Modified core scripts:
 DONE (2026-05-07). README.md, docs/experiments.md, docs/space_localization.md, docs/decisions.md
 all now contain the 4000-star false sweep result with per-stage timings.
 
+### 1.5. TRN Scaffold (Synthetic Pipeline) — cycle 2 landed 2026-05-09
+
+`scripts/synthetic_trn_demo.py` is a single-file procedural-terrain TRN walkthrough.
+Cycle 2 (2026-05-09 evening) replaced all three placeholders from cycle 1:
+
+1. **Heightmap-aware terrain.** `synth_terrain` now returns BOTH `heightmap_m`
+   and `intensity` — the same crater Gaussians (20 large / 150 medium / 800
+   small) drive both, so SIFT features align with real geometry. The heightmap
+   is in metres; `intensity` is `uint8` saved as `ortho.png`.
+2. **Forward ray-march renderer.** `render_rover_view` builds rover camera
+   rays in world frame, initialises each ray to the flat-Z=0 hit, then runs
+   6 fixed-point iterations of `s = (h(P_xy(s)) - cam_z) / d_z` so each ray
+   actually lands on the heightmap surface. Pixels whose ray points above the
+   horizon or whose footprint leaves the heightmap are rendered as 0 (sky).
+   `cv2.remap(INTER_LINEAR)` does the heightmap and intensity sampling.
+3. **Fixed rotation convention.** New `world_camera_rotation(yaw, pitch, roll)`
+   helper applies a base R0 ("camera looks +Y/north, level") plus extrinsic
+   yaw and intrinsic pitch+roll. With this convention, `--pitch-deg -90`
+   actually produces a true top-down view (verified: rendered ortho is
+   recognisable as the source). Cycle 1's `Rz @ Ry @ Rx` made pitch=-90 look
+   sideways at the ground.
+4. **PnP pose recovery.** `recover_pose_pnp` lifts each matched ortho pixel
+   `(uo, vo)` to a 3D world point `(uo*px_to_m, vo*px_to_m, h(uo, vo))`,
+   pairs it with the rover pixel, and calls
+   `cv2.solvePnPRansac(flags=SOLVEPNP_AP3P)` followed by `solvePnPRefineLM`.
+   Three other PnP solvers were ablated — SQPNP raises an internal variance
+   assertion on near-coplanar 3D points; EPNP and ITERATIVE return success
+   on outlier-heavy inlier sets but converge to numerically degenerate poses
+   (positions of order 1e7-1e16 m off truth). AP3P stays numerically stable
+   even when the inlier 3D points are coplanar.
+
+Two further fixes were needed before defaults converged honestly:
+
+- **Match dedup.** `cv2.BFMatcher.knnMatch(des_o → des_r)` returns the best
+  rover neighbour per ortho keypoint but says nothing about whether the rover
+  keypoint already claimed a different ortho keypoint as its best. Without
+  dedup, RANSAC locks onto a "consensus" of dozens of ortho keypoints all
+  collapsing to the same rover pixel — geometrically a single rover ray
+  pierces N ortho 3D points, which any pose fits trivially. Concrete failure
+  observed at terrain_seed=4: 57 "inliers" all at rover pixel (258.3, 304.3),
+  median reproj 0 px, estimated camera position 1e16 m off truth. Dedup keeps
+  only the best ortho match per rover keypoint.
+- **Plausibility gate.** Even after dedup, AP3P RANSAC can lock onto a small
+  cluster of false-but-mutually-consistent matches that pass the median-reproj
+  check but place the camera 100s-1000s of metres off-truth. Gate rejects any
+  estimate where the recovered (X, Y) lies more than 50 percent of the ortho
+  extent outside the ortho footprint, OR where the recovered Z is at or below
+  the highest heightmap rim. Catches every degenerate-success seed in the
+  10-seed sweep with no false rejections of good seeds.
+
+Operating envelope (10-seed sweep at defaults, top-down altitude 100 m,
+800 m x 800 m ortho):
+
+- 8/10 seeds → position error 0.57-2.88 m (matches 76-115, inliers 7-21).
+- 2/10 seeds → cleanly REJECTED by the plausibility gate. **Zero false
+  positives leaked through.**
+- Default fixture (seed=7): matches=91, inliers=21, median reproj 1.11 px,
+  truth (200, 200, 100), estimated (197.42, 199.99, 98.72), error 2.881 m.
+
+Out-of-envelope (deferred):
+
+- Tilt > 20 deg from nadir: SIFT inlier ratio drops below ~5 percent and
+  RANSAC degenerate-coplanar failures increase. Pitch sweep at altitude 80 m
+  yaw=0 roll=0: pitch=-90 → 0.91 m, -85 → 0.54 m, -80 → 1.36 m, -75 → 0.99 m.
+  Then -70 → REJECTED, -60/-45 → REJECTED. The 80 m + low-tilt regime is the
+  honest operating ceiling for the current SIFT-based path.
+- Real LRO ortho/DEM tile bench: still pending — needs a download adapter and
+  a tile-coordinate plumbing layer.
+
+The **architecture and CLI shape** (`--ortho-size-px`, `--rover-fx/fy/cx/cy`,
+`--rover-x-m/y-m`, `--rover-altitude-m`, `--yaw/pitch/roll`, `--ortho-px-to-m`,
+`--ratio-test`, `--max-features`, `--terrain-seed`) are stable. New cycle-2
+flags: `--pnp-reproj-error-px` (default 5.0), `--pnp-ransac-iters` (default
+200000), `--ray-march-iters` (default 6). Output is
+`docs/figures/trn_synthetic/{ortho,rover,matches}.png` plus `summary.json`
+with `match_count`, `pnp.pnp_inliers`, `pnp.inlier_median_reproj_px`,
+`rover_estimated_xyz_m`, `position_error_m`, and `R_world_camera_truth`.
+
 ### 2. Run Full 4000 False Scaling
 
 DONE (2026-05-07). Full `false_counts 0 4 8 12` sweep at 4000 indexed stars all returned 64/64
@@ -728,14 +840,28 @@ tolerance window.
 
 The next handoff should pick from the following, in roughly decreasing value:
 
-1. **Sky-cell / HEALPix partitioning of the pair index** — newly promoted. The 60000 mag&le;9
-   smoke confirms correctness extends past the mag&le;8 catalog ceiling (32/32 correct), but
-   query is now ~5 min/attempt because candidate_hypotheses scales as ~density² (700k at 60k
-   mag&le;9 vs 150k at 40k mag&le;8). Sky-cell partitioning of the catalog (and a corresponding
-   per-cell pair index) is the standard scalability fix: a query attitude only consults the
-   pair lists that intersect the predicted sky cell of the observations, dropping candidate
-   density by a factor proportional to the cell count. Required before mag&le;9 (or higher)
-   becomes a routine operating point.
+1. **Sky-cell / HEALPix partitioning of the pair index** — phases 1 and 2 landed,
+   phase 3 still open. **Phase 1 (2026-05-09)**: `--fov-radius-deg` opt-in flag on
+   `identify_stars_with_pair_index.py`; when set, `verify_rotation` pre-prunes the
+   catalog to stars within the FOV cone of the rotation hypothesis. 60k mag&le;9
+   verify time **0.451 s → 0.127 s (-72%)** byte-exact; 16k mag&le;8 verify -51%.
+   **C++ port landed same day**: `apps/lost_in_space_pair_id --fov-radius-deg`
+   mirrors the Python flag (also flows through `LostInSpaceConfig::fov_radius_rad`
+   into `pair_id_solver.cpp::verify_rotation`); JSON metadata gains `fov_radius_deg`.
+   2000-star bit-exact: C++ verify 0.00317 s → 0.00093 s (**-71%**), CSV byte-identical
+   to both the Python baseline and the C++ baseline.
+   **Phase 2 (2026-05-09)**: per-star `sky_cell_ids` (4×12 = 48 cells) embedded
+   in the `.npz`; `--cell-compactness-deg` opt-in drops merged catalog triangles
+   whose pairwise sky-cell-center angles exceed the threshold. 60k mag&le;9 at
+   compactness=50: candidate_hypotheses **701k → 437k (-38%)**, 32/32 correct,
+   cand_gen and verify wall-times **unchanged within noise** because the filter
+   runs *after* the merge. **Phase 3 (open, multi-day)**: re-key the pair index
+   by `(edge_bin, cell_pair)` so `load_candidate_pairs` loads only pairs in cell
+   pairs consistent with a candidate cell triple. This is what would actually
+   move the 60k mag&le;9 ~250 s `cand_gen` headline; the post-merge filter is
+   only a hypothesis-count knob. Implementation requires a new `.npz` schema
+   (`bin_offsets` reshaped to `(n_bins, n_cell_pairs+1)`), a new `load_candidate_pairs`
+   that takes a cell-pair set, and a matching C++ reader update.
 
 2. **Push higher within mag&le;9 once step 1 lands.** mag&le;9 has 83479 stars; 80k+ index would
    exercise the deepest density we have. Build memory remains the secondary concern even with
@@ -797,17 +923,48 @@ The next handoff should pick from the following, in roughly decreasing value:
    magnitude term when available; legacy `cat_mag` is the no-mag fallback. Two wins:
    (1) the persistent fixture-specific 1-wrong assignment that survived every prior
    sweep is resolved (16/16 vs 15/16); (2) edge-biased false=12 succeeds at 16/16
-   single-pass without restart. Still open: catalog aberration (annual),
-   magnitude-aware false-positive *intensity* (cluster brighter false detections
-   specifically around read-noise spikes rather than uniform Gaussian mag).
+   single-pass without restart. **Magnitude-aware false-positive intensity landed 2026-05-09**:
+   `scripts/drop_star_ids.py --false-mag-hot-mean/std` give hot-pixel false
+   detections a separate (typically brighter, saturated-looking) Gaussian mag.
+   16k mag&le;8 stress: 32/32 across saturated (mean 2.0) and star-like (mean
+   4.5) hot-pixel distributions, with default-vs-saturated CSV byte-identical.
+   **Annual stellar aberration landed 2026-05-09**:
+   `scripts/generate_star_tracker_observations_from_catalog.py
+   --annual-aberration-deg <deg>` shifts catalog directions by β·v_hat
+   (β ≈ 9.94e-5, max 20.5 arcsec). 16k mag&le;8 phase sweep
+   (none / 0 / 90 / 180 / 270): 32/32 every time, RMS 18.5–19.1 arcsec
+   with ~0.5 arcsec phase modulation. Realism axis count is now 7. No
+   open realism axes remain in the original list.
 
 5. **Top-K verified-hypothesis ranking** (deeper algorithmic hardening). Restart is a pragmatic
    fix; a more principled solution keeps top-K candidate attitudes and explicitly reasons about
    predicted-vs-observed match counts under a limiting-magnitude prior. Implement if a future
    realism axis turns up a non-restart-fixable failure mode.
 
-6. **POLAR multi-traverse robustness.** The Traverse4-6 baseline is still 11/33 to 15/33 frames
-   OK even with CLAHE. Exposure sweeps and SIFT stereo PnP haven't been tried as a unified suite.
+6. **POLAR multi-traverse robustness.** SIFT stereo PnP landed 2026-05-09
+   (`apps/stereo_visual_odometry --feature sift`, `benchmarks/run_polar_traverse_suite.py
+   --stereo-features orb sift`). Traverse4-6 50 ms CLAHE went 15/33 → 25/33 with that
+   change. Loosened Lowe ratio test (`--ratio-test` exposed on the CLI;
+   `--stereo-ratio-test` on the suite runner) at 0.85 instead of the default 0.75
+   then took T4-T6 to **32/33** with mean ATE 0.187 m, while T1-T3 stayed at
+   33/33 with ATE 0.028-0.043 m. **POLAR is now at 65/66 frames OK across all
+   six Traverses** with mean ATE 0.118 m. Default ratio left at 0.75 so prior
+   reproducers don't shift; 0.85 is documented as the dim-light operating point.
+   Open: T6 frame 3 (the last failure) still hits "not enough 3D-2D
+   correspondences" — likely needs longer exposure or temporal landmark
+   tracking, not a feature-matching tweak. Investigated 2026-05-09:
+   confirmed unrescuable in the current frame-to-frame architecture
+   (mean luminance drops from 166 to 118 between frame 2 and frame 3,
+   so SIFT only finds 4 temporal matches and PnP cannot fit). Tried
+   `--ratio-test 0.90` (collapses other T6 frames into pnp-failed),
+   stronger CLAHE (clip 4, no change), `--min-pnp-points 4 --min-pnp-inliers 4`
+   (PnP itself fails on the 4 matches, all noisy). Added a defensive
+   `last_good_frame_` fallback in `StereoVisualOdometry::process` —
+   on motion failure, retries against the most recent successful frame
+   if its 3D-point count strictly exceeds the failed previous frame's.
+   Doesn't trigger here (last_good == previous), but is a safety net for
+   "previous + current both weak" patterns. POLAR Traverses 1-6 stay at
+   65/66 with mean ATE 0.118 m.
 
 7. **CI bit-exact smoke for the C++ identifier.** Now that `apps/lost_in_space_pair_id` is
    byte-exact against the Python reference on the 500 / 2000 / 16000 fixtures, add a small

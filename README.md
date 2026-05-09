@@ -17,22 +17,29 @@ identification recovers attitude from a single star tracker image with **no prio
 detected centroids against a public catalog by their pairwise angles, then solve Wahba/Kabsch
 for the camera-inertial rotation.
 
-![Lost-in-space identification across a random-attitude sweep](docs/figures/lost_in_space_demo.gif)
+![Lost-in-space identification across six famous-constellation attitudes — Orion, Big Dipper, Cygnus+Lyra, Cassiopeia, Leo, Scorpius — with constellation lines and bright-star labels drawn from the recovered identification](docs/figures/lost_in_space_demo.gif)
 
-Six random attitudes through the full pipeline — synthetic exposure → centroid detection →
-pair-angle index lookup → Wahba rotation — produce **766 / 768 correct, 2 wrong, 0
-unassigned** at 128 centroids per frame against an 8 920-star HYG mag≤6.5 index. Green
-circles are correct, red is wrong, blue is unassigned.
+Six attitudes whose boresights land on recognisable asterisms are run through the full
+pipeline — synthetic exposure → centroid detection → pair-angle index lookup → Wahba
+rotation — producing **759 / 768 correct, 7 wrong, 2 unassigned** at 128 centroids per
+frame against an 8 920-star HYG mag≤6.5 index. The constellation stick-figures (cyan)
+and bright-star labels (gold) are drawn purely from the catalog ids the C++ identifier
+emits — they only appear once the matcher recovers attitude. Green rings = correct,
+red = wrong, blue = unassigned.
 
-Reproduce the GIF in one shot (uses the C++ identifier and a `.bin` index emitted by
+Reproduce the GIF (uses the C++ identifier and a `.bin` index emitted by
 `scripts/build_star_pair_index.py --write-bin` or `apps/build_star_pair_index`):
 
 ```bash
-python3 scripts/render_lost_in_space_gif.py \
+python3 scripts/render_constellation_demo_gif.py \
   --catalog datasets/star_catalogs/hyg-v42/converted/hyg_v42_bright_mag6p5_unit.csv \
-  --index-bin <path-to>/hyg_pair_index_16000.bin \
+  --index-bin <path-to>/hyg_pair_index_full.bin \
   --output docs/figures/lost_in_space_demo.gif
 ```
+
+The unannotated random-attitude variant (no constellation overlays, no asterism
+preselection) is still available via `scripts/render_lost_in_space_gif.py` for bench
+runs.
 
 <details>
 <summary>Run a single attitude through the underlying three-step pipeline</summary>
@@ -58,6 +65,41 @@ python3 scripts/identify_stars_with_pair_index.py \
 ```
 
 </details>
+
+### Terrain-relative navigation on real LRO + LOLA data
+
+A virtual descent camera at orbital altitude looks down on the lunar surface;
+the matcher recovers its position from a single frame against a public LRO
+mosaic + LOLA elevation model — no inertial prior, no rover trajectory.
+
+![Real LRO WAC mosaic of Tycho ejecta — left = ortho, right = rendered nadir-pointing rover view at 400 km altitude](docs/figures/trn_lro_tycho/rover.png)
+
+The pipeline fetches LROC WAC tiles via NASA Trek WMTS (~600 KB per scene at
+zoom 5) and a LOLA `LDEM_<ppd>.img` from PDS Geosciences (~2 MB at 4 ppd),
+forward-renders the rover view by ray-marching every pixel through the real
+heightmap, and recovers the camera pose with `cv2.solvePnPRansac(SOLVEPNP_AP3P)`
+on (3D world, 2D rover) correspondences.
+
+6-target sweep at 400 km altitude / WAC z=5 (~660 m/px ortho, ~500 km mosaic):
+
+| Target | Matches | Inliers | Position error |
+| --- | ---: | ---: | ---: |
+| Apollo 11 (Mare Tranquillitatis) | 79 | 24 | 1383 m |
+| Apollo 12 (Oceanus Procellarum) | 37 | 16 | 300 m |
+| Apollo 15 (Hadley Rille) | 107 | 20 | 574 m |
+| Apollo 17 (Taurus-Littrow) | 89 | 16 | 622 m |
+| **Tycho (bright ejecta)** | **113** | **24** | **179 m** |
+| Copernicus (ray crater) | 58 | 17 | 391 m |
+
+All six recover position with no false positives. Mare targets have ~10x worse
+error than crater rim targets because mare SIFT features are dim and self-similar.
+
+Reproduce (downloads ~600 KB ortho + 2 MB DEM on first run, then ~5 s per scene):
+
+```bash
+python3 scripts/lro_trn_demo.py --target tycho \
+  --output-dir docs/figures/trn_lro_tycho
+```
 
 ### Lunar visual odometry on NASA POLAR Traverse 1
 
@@ -103,6 +145,7 @@ Numbers below are the current best on the corresponding benchmark. Full per-iter
 | Lost-in-space, **5-axis** realism stack (HYG mag≤8, 16k, ps=6, trials=6, restarts=3) | Above 4 axes (with pm=200) plus `--hot-pixel-fraction 0.5` placing 50% of false detections at fixed sensor hot-pixel positions | **767/768 correct (99.87%), 0 wrong**. 2/24 trials hit the 4-attempt restart-budget ceiling but still recovered. Five realism axes stacked still preserve correctness via restart |
 | Lunar VO (POLAR Traverse1, L 50 ms, monocular SIFT) | 11 frames, Sim(3) alignment | ATE RMSE **0.0186 m**, 11/11 frames OK |
 | Lunar VO (POLAR Traverse1, L 50 ms, rectified stereo + PnP) | 11 frames, SE(3) | ATE RMSE **0.0650 m**, path 10.18 m vs 9.98 m GT |
+| Lunar VO (POLAR Traverse**1-6**, L 50 ms, rectified stereo + PnP, **SIFT** + CLAHE + `--ratio-test 0.85`) | 66 frames total | **65/66 frames OK** (ORB+default-ratio baseline was 15/33 on T4-T6). T1 11/11 ATE 0.028 m, T2 11/11 ATE 0.037 m, T3 11/11 ATE 0.043 m, T4 11/11 ATE 0.069 m, T5 11/11 ATE 0.080 m, T6 10/11 ATE 0.413 m |
 
 `--pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120` is the operational default for honest-density
 HYG mag≤8 lost-in-space work.
