@@ -19,7 +19,7 @@ import pandas as pd
 from identify_stars_with_index import (
     angular_distance,
     estimate_rotation_camera_inertial,
-    load_observations,
+    load_observations_with_mag,
     verify_rotation,
 )
 
@@ -214,10 +214,20 @@ def main() -> int:
     parser.add_argument("--observations", type=Path, required=True)
     parser.add_argument("--index", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--fx", type=float, required=True)
-    parser.add_argument("--fy", type=float, required=True)
-    parser.add_argument("--cx", type=float, required=True)
-    parser.add_argument("--cy", type=float, required=True)
+    parser.add_argument(
+        "--calibration-json",
+        type=Path,
+        default=None,
+        help="Optional JSON bundle of camera calibration. Schema matches the truth.json "
+        "written by generate_star_tracker_observations_from_catalog.py: top-level keys "
+        "'intrinsics' (fx/fy/cx/cy) and optional 'distortion' (k1/k2/p1/p2). When set, the "
+        "values populate any unset --fx/--fy/--cx/--cy/--distortion-* flags; explicit flags "
+        "still win.",
+    )
+    parser.add_argument("--fx", type=float, default=None)
+    parser.add_argument("--fy", type=float, default=None)
+    parser.add_argument("--cx", type=float, default=None)
+    parser.add_argument("--cy", type=float, default=None)
     parser.add_argument("--tolerance-arcsec", type=float, default=300.0)
     parser.add_argument("--neighbor-bins", type=int, default=2)
     parser.add_argument("--verification-tolerance-arcsec", type=float, default=600.0)
@@ -254,14 +264,55 @@ def main() -> int:
         default=0,
         help="Seed for the observation-permutation RNG used between pyramid restarts.",
     )
+    parser.add_argument(
+        "--distortion-k1",
+        type=float,
+        default=None,
+        help="Brown-Conrady k1 used to iteratively undistort the loaded (u, v) pixels at the "
+        "front door. Default None falls back to --calibration-json or 0 (no undistortion).",
+    )
+    parser.add_argument("--distortion-k2", type=float, default=None)
+    parser.add_argument("--distortion-p1", type=float, default=None)
+    parser.add_argument("--distortion-p2", type=float, default=None)
     args = parser.parse_args()
+
+    # Reconcile --calibration-json with the individual flags. Explicit CLI flags always win;
+    # JSON values fill in anything left as None. After reconciliation fx/fy/cx/cy must be
+    # set, distortion defaults to 0.
+    calibration_payload: dict = {}
+    if args.calibration_json is not None:
+        calibration_payload = json.loads(args.calibration_json.read_text(encoding="utf-8"))
+    intrinsics_block = calibration_payload.get("intrinsics", {})
+    distortion_block = calibration_payload.get("distortion", {})
+    for axis in ("fx", "fy", "cx", "cy"):
+        if getattr(args, axis) is None:
+            value = intrinsics_block.get(axis)
+            if value is None:
+                raise SystemExit(
+                    f"identify_stars_with_pair_index: --{axis} required (or set via --calibration-json)"
+                )
+            setattr(args, axis, float(value))
+    for coef in ("k1", "k2", "p1", "p2"):
+        attr = f"distortion_{coef}"
+        if getattr(args, attr) is None:
+            setattr(args, attr, float(distortion_block.get(coef, 0.0)))
 
     star_ids, catalog_vectors, catalog_magnitudes, index, bin_size_rad, index_format = load_pair_index(args.index)
     tolerance_rad = math.radians(args.tolerance_arcsec / 3600.0)
     verification_tolerance_rad = math.radians(args.verification_tolerance_arcsec / 3600.0)
     magnitude_prior_rad = math.radians(args.magnitude_prior_arcsec / 3600.0)
 
-    observations = load_observations(args.observations, args.fx, args.fy, args.cx, args.cy)
+    observations, observation_magnitudes = load_observations_with_mag(
+        args.observations,
+        args.fx,
+        args.fy,
+        args.cx,
+        args.cy,
+        k1=args.distortion_k1,
+        k2=args.distortion_k2,
+        p1=args.distortion_p1,
+        p2=args.distortion_p2,
+    )
 
     triangle_matches = 0
     candidate_hypotheses = 0
@@ -337,6 +388,7 @@ def main() -> int:
                 catalog_magnitudes,
                 verification_tolerance_rad,
                 magnitude_prior_rad,
+                observation_magnitudes=observation_magnitudes,
             )
             verification_seconds += time.perf_counter() - verify_start
             if candidate_assignments:

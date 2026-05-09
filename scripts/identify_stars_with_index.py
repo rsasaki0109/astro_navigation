@@ -18,14 +18,86 @@ def normalize(vector: np.ndarray) -> np.ndarray:
     return vector / np.linalg.norm(vector)
 
 
-def load_observations(path: Path, fx: float, fy: float, cx: float, cy: float) -> list[np.ndarray]:
+def _undistort_normalized(
+    x_d: float,
+    y_d: float,
+    k1: float,
+    k2: float,
+    p1: float,
+    p2: float,
+    iterations: int = 8,
+) -> tuple[float, float]:
+    """Iteratively invert Brown-Conrady distortion in normalized image coordinates.
+
+    Forward model (matches generate_star_tracker_observations_from_catalog.py):
+        x_d = x * (1 + k1 r2 + k2 r2^2) + 2 p1 x y + p2 (r2 + 2 x^2)
+        y_d = y * (1 + k1 r2 + k2 r2^2) + p1 (r2 + 2 y^2) + 2 p2 x y
+    Newton-style fixed-point inversion converges in ~5 iterations for the
+    distortion magnitudes we care about (|k1| up to ~0.5).
+    """
+    x = x_d
+    y = y_d
+    for _ in range(iterations):
+        r2 = x * x + y * y
+        radial = 1.0 + k1 * r2 + k2 * r2 * r2
+        x_t = 2.0 * p1 * x * y + p2 * (r2 + 2.0 * x * x)
+        y_t = p1 * (r2 + 2.0 * y * y) + 2.0 * p2 * x * y
+        x = (x_d - x_t) / radial
+        y = (y_d - y_t) / radial
+    return x, y
+
+
+def load_observations(
+    path: Path,
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    p1: float = 0.0,
+    p2: float = 0.0,
+) -> list[np.ndarray]:
+    bearings, _ = load_observations_with_mag(path, fx, fy, cx, cy, k1, k2, p1, p2)
+    return bearings
+
+
+def load_observations_with_mag(
+    path: Path,
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    p1: float = 0.0,
+    p2: float = 0.0,
+) -> tuple[list[np.ndarray], list[float] | None]:
+    """Load observations and the optional `mag` column.
+
+    Returns (bearings, magnitudes). `magnitudes` is None when the input has no mag
+    column, which preserves the historical (id, u, v)-only schema. Distortion is
+    handled identically to load_observations.
+    """
     bearings: list[np.ndarray] = []
+    distortion_active = (k1 != 0.0) or (k2 != 0.0) or (p1 != 0.0) or (p2 != 0.0)
+    magnitudes: list[float] = []
     with path.open(newline="", encoding="utf-8") as handle:
-        for row in csv.DictReader(handle):
+        reader = csv.DictReader(handle)
+        carries_mag = reader.fieldnames is not None and "mag" in reader.fieldnames
+        for row in reader:
             u = float(row["u"])
             v = float(row["v"])
-            bearings.append(normalize(np.array([(u - cx) / fx, (v - cy) / fy, 1.0])))
-    return bearings
+            x_d = (u - cx) / fx
+            y_d = (v - cy) / fy
+            if distortion_active:
+                x_n, y_n = _undistort_normalized(x_d, y_d, k1, k2, p1, p2)
+            else:
+                x_n, y_n = x_d, y_d
+            bearings.append(normalize(np.array([x_n, y_n, 1.0])))
+            if carries_mag:
+                magnitudes.append(float(row["mag"]))
+    return bearings, (magnitudes if carries_mag else None)
 
 
 def angular_distance(lhs: np.ndarray, rhs: np.ndarray) -> float:
@@ -68,19 +140,33 @@ def verify_rotation(
     catalog_magnitudes: list[float],
     tolerance_rad: float,
     magnitude_prior_rad: float,
+    observation_magnitudes: list[float] | None = None,
 ) -> tuple[dict[int, int], float, float]:
+    """Greedy verification under a rotation hypothesis.
+
+    Score per (obs, cat) candidate: `error + magnitude_prior_rad * mag_term`.
+    `mag_term` is `|obs_mag - cat_mag|` when observation_magnitudes is provided
+    (sharper discrimination because the prior penalizes magnitude mismatch),
+    else falls back to the legacy `cat_mag` (prefer-bright-stars prior). The
+    fallback path is bit-exact against fixtures that predate the obs-mag axis.
+    """
     candidates: list[tuple[float, float, int, int]] = []
     catalog_matrix = np.asarray(catalog_vectors, dtype=float)
     magnitude_vector = np.asarray(catalog_magnitudes, dtype=float)
     predicted_vectors = catalog_matrix @ rotation_camera_inertial.T
     min_dot = math.cos(tolerance_rad)
+    use_obs_mag = observation_magnitudes is not None
     for obs_index, observation in enumerate(observations):
         dots = predicted_vectors @ observation
         candidate_indices = np.flatnonzero(dots >= min_dot)
         if candidate_indices.size == 0:
             continue
         errors = np.arccos(np.clip(dots[candidate_indices], -1.0, 1.0))
-        scores = errors + magnitude_prior_rad * magnitude_vector[candidate_indices]
+        if use_obs_mag:
+            mag_term = np.abs(magnitude_vector[candidate_indices] - observation_magnitudes[obs_index])
+        else:
+            mag_term = magnitude_vector[candidate_indices]
+        scores = errors + magnitude_prior_rad * mag_term
         for score, error, cat_index in zip(scores, errors, candidate_indices, strict=True):
             candidates.append((float(score), float(error), obs_index, int(cat_index)))
 

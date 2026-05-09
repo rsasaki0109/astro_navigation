@@ -298,3 +298,308 @@ zero wrong assignments. Per-stage timing shows candidate generation accounts for
 time (~7.4-7.9 s) while vectorized verification is only ~0.4 s. The next engineering target is the
 pair-list intersection / adjacency reuse inside `candidate_mappings`, not verification. Defer any
 8000-star scaling attempt until candidate generation is reduced.
+
+## 2026-05-09: C++ Identifier Port — Bit-Exact Validation On 500 / 2000 / 16000 Fixtures
+
+`apps/lost_in_space_pair_id` now wraps `localization::identify_lost_in_space()`, the C++ port of
+`scripts/identify_stars_with_pair_index.py`. We re-ran the Python reference and the C++ binary on
+the same fixtures and compared the assignments CSVs byte-for-byte (`cmp -s`).
+
+Pair indices were rebuilt with `scripts/build_star_pair_index.py --write-bin --skip-pkl` so each
+fixture has both an `.npz` (Python loads it) and a `.bin` (C++ loads it). Same `--bin-arcsec 120`,
+`--min-edge-deg 0.2`, `--max-edge-deg 80` parameters across all builds.
+
+| Fixture | Indexed stars | Mode | Args extras | C++ vs Py |
+| ---: | ---: | --- | --- | --- |
+| `outputs/hyg_ambiguity_benchmark_500/index_500/trial_000` | 500 | default | `--tolerance-arcsec 300 --neighbor-bins 2` | byte-exact |
+| `outputs/hyg_ambiguity_benchmark_500/index_500/trial_001` | 500 | default | (same) | byte-exact |
+| `outputs/hyg_pair_index_benchmark_pruned/index_2000/trial_000` | 1000 (resolved) | default | (same) | byte-exact |
+| `outputs/hyg_pair_index_benchmark_pruned/index_2000/trial_001` | 1000 (resolved) | default | (same) | byte-exact |
+| (same trial_000 obs) | 1000 | pyramid | `--tolerance-arcsec 120 --neighbor-bins 1 --pyramid-size 6` | byte-exact |
+| 16-star synthetic obs vs HYG mag≤6.5 (catalog-saturated to 8920) | 8920 | pyramid | `--pyramid-size 6 --tolerance-arcsec 120 --neighbor-bins 1` | byte-exact |
+
+Metadata fields that depend on Wahba/Kabsch (`best_rms_error_arcsec`, `best_mean_score_arcsec`)
+differ between Python (`numpy.linalg.svd` → LAPACK gesdd) and C++ (`Eigen::JacobiSVD`) at the
+~1e-6 arcsec level — far below the 600 arcsec verification tolerance and not enough to flip any
+greedy assignment. Counts (`assigned_observations`, `triangle_matches`,
+`observation_triangles_evaluated`, `candidate_hypotheses`, `verified_hypotheses`,
+`attempts_taken`, `winning_attempt_index`) match exactly.
+
+Decision: the C++ identifier is now the deployment path. The Python script remains the reference
+implementation and the bit-exact diff is the regression contract — see PLAN.md item 7 for the
+proposed CI smoke that runs both on every push.
+
+## 2026-05-09: Optical Distortion Realism Axis (Brown-Conrady k1 Sweep)
+
+`scripts/generate_star_tracker_observations_from_catalog.py` gained four flags
+(`--distortion-k1`, `--distortion-k2`, `--distortion-p1`, `--distortion-p2`) that apply forward
+Brown-Conrady distortion at projection. The lost-in-space identifier consumes no calibration
+information, so the synthesized pixels go in raw — this measures how robust the pair-angle
+matcher is to an *uncalibrated* lens.
+
+Sweep configuration: HYG mag&le;6.5 catalog (8920 stars, full mag6.5 file used as the index
+source), 16 observations per trial, `--noise-px 0.1`, `--seed 16000`, `--yaw-deg 30 --pitch-deg
+15 --roll-deg 5`. Identifier: C++ `apps/lost_in_space_pair_id` with the bit-exact-against-Python
+default config (`--tolerance-arcsec 120 --neighbor-bins 1 --verification-tolerance-arcsec 600
+--magnitude-prior-arcsec 15 --pyramid-size 6`).
+
+| k1 | Correct | Wrong | Assigned | best_rms_error_arcsec |
+| ---: | ---: | ---: | ---: | ---: |
+| 0 | 15/16 | 1 | 16 | 27.68 |
+| -0.02 | 12/16 | 2 | 14 | 222.49 |
+| -0.05 | 0/16 | 5 | 5 | 186.73 |
+| -0.10 | 0/16 | 6 | 6 | 264.42 |
+| -0.20 | 0/16 | 5 | 5 | 116.15 |
+| -0.30 | 0/16 | 6 | 6 | 118.50 |
+
+Order-of-magnitude calibration: at the image corner (u=1024, fx=1000), normalized radius² is
+0.524, so k1=-0.05 displaces a star ~13 pixels inward (~2700 arcsec). The default 300 arcsec
+edge-tolerance is overwhelmed at any k1 &le; -0.05.
+
+Decision: the pair-angle identifier is **not** distortion-tolerant on its own — uncalibrated
+distortion at k1 = -0.02 already drops correctness from 94% to 75%, and k1 = -0.05 collapses it
+to zero. For real-camera deployment the consumer must undistort the observed pixels (using a
+calibrated `cv::undistortPoints` or equivalent) before handing them to
+`identify_lost_in_space()`. Tolerance widening is not a real fix — at the corner the residual
+already approaches the verification-tolerance ceiling.
+
+Open follow-up: add a `--distortion-coefficients` JSON input to the C++ CLI that runs
+`undistortPoints` over the loaded `(u, v)` pixels before normalisation. This keeps the
+identifier algorithm unchanged and folds the calibration knowledge into the front door.
+
+## 2026-05-09: Undistortion Front-Door Restores Correctness Under Distortion
+
+Both `scripts/identify_stars_with_pair_index.py` and `apps/lost_in_space_pair_id` gained
+`--distortion-k1/k2/p1/p2` flags that iteratively invert Brown-Conrady at the (u, v) →
+bearing step using a fixed-point iteration (8 iterations; converges within float precision
+for |k1| ≤ 0.5). This re-runs the previous sweep with the identifier compensating for the
+generator-applied distortion.
+
+| k1 (gen = id) | Py correct | Py wrong | C++ correct | C++ wrong | Bit-exact |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 0 | 15/16 | 1 | 15/16 | 1 | byte-exact |
+| -0.02 | 15/16 | 1 | 15/16 | 1 | byte-exact |
+| -0.05 | 15/16 | 1 | 15/16 | 1 | byte-exact |
+| -0.10 | 15/16 | 1 | 15/16 | 1 | byte-exact |
+| -0.20 | 15/16 | 1 | 15/16 | 1 | byte-exact |
+| -0.30 | 15/16 | 1 | 15/16 | 1 | byte-exact |
+
+The single wrong assignment is the same fixture-specific catalog ambiguity that already
+appears at k1=0 in the previous (uncalibrated) sweep — it is not introduced by the
+undistortion path. The 500-star no-distortion fixture remains byte-exact between the C++
+and Python outputs after the changes (regression-checked).
+
+Decision: the C++ identifier now consumes calibration knowledge at the front door (intrinsics
++ distortion). For real-camera deployment the consumer simply provides the calibration JSON
+and the algorithm stays untouched. Open follow-up: accept a single `--calibration-json` path
+that bundles fx/fy/cx/cy + distortion (matches the `truth.json` schema written by the
+observation generator), so wiring downstream tooling becomes a one-liner.
+
+## 2026-05-09: C++ Pair-Index Builder — Bit-Exact + Wall-Time Sweep
+
+`apps/build_star_pair_index` is a C++ port of `scripts/build_star_pair_index.py --write-bin`.
+We measured wall time + peak RSS on the same catalogs and `cmp`'d the resulting `.bin` files.
+
+Catalogs:
+
+- 500: `outputs/hyg_ambiguity_benchmark_500/hyg_brightest_500.csv`
+- 4000 / 16000: `datasets/star_catalogs/hyg-v42/converted/hyg_v42_bright_mag6p5_unit.csv`
+
+Both runs use `--bin-arcsec 120 --min-edge-deg 0.2 --max-edge-deg 80`.
+
+| Limit | Pairs | Python wall | Python RSS | C++ wall | C++ RSS | `.bin` cmp |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 500 | 52,549 | (negligible) | — | (negligible) | — | byte-exact |
+| 4000 | 3,329,812 | 4.33 s | 265 MB | 0.73 s | 130 MB | byte-exact |
+| 16000 (sat. 8920) | 16,547,574 | 12.51 s | 748 MB | 2.76 s | 393 MB | byte-exact |
+
+Decision: the C++ builder is the deployment-path index source going forward. The Python
+builder stays as the reference / `.npz` source for benchmarks that consume the NumPy index
+directly. With the C++ identifier already in place, the full deployment pipeline (catalog
+CSV → `.bin` → identifier → assignments CSV) now runs without a Python dependency.
+
+Open follow-ups for very large catalogs:
+
+- mag≤9 80k+ build still allocates the full pair list. Memory peaks ~50 GB extrapolated;
+  add a streaming / two-pass path before attempting that scale.
+- The Python builder still writes the `.npz` (used by benchmarks) and the optional `.pkl`.
+  Whether to add `.npz` writing to the C++ builder is gated on whether the npz format
+  becomes a deployment-path requirement (currently no — deployment uses `.bin` only).
+
+## 2026-05-09: C++ Pair-Index Builder — 2-Pass Bucket Fill (Memory + Wall Wins)
+
+`apps/build_star_pair_index` was refactored from a single-pass (collect-then-sort) layout to
+a 2-pass bucket fill. Pass 1 walks every (i, j>i) pair and counts pairs per bin; that gives
+us `bin_keys` + `bin_offsets` directly. Pass 2 re-walks the same order and writes each pair
+into its slot via a per-bin write cursor. Within any bin, pairs land in visitation order
+(i ascending, j ascending), which is exactly what `np.argsort(kind="stable")` produced on
+the prior sort path — so the `.bin` output is unchanged.
+
+| Limit | Pairs | Sort-path wall | Sort-path RSS | 2-pass wall | 2-pass RSS | `.bin` cmp |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 500 | 52,549 | (negl.) | — | 0.00 s | 5 MB | byte-exact |
+| 4000 | 3,329,812 | 0.73 s | 130 MB | 0.49 s | 46 MB | byte-exact |
+| 16000 (sat. 8920) | 16,547,574 | 2.76 s | 393 MB | 2.07 s | 134 MB | byte-exact |
+
+Compared to the Python `--write-bin` reference at 16000 stars: 12.51 s / 748 MB → 2.07 s /
+134 MB, a ~6× wall and ~5.5× memory reduction. The previous C++ sort-path numbers are
+preserved in the prior table for reference.
+
+Decision: 2-pass is now the only build path. The intermediate `(lhs, rhs, bin)` int32
+buffers and the index-permutation `stable_sort` are gone, which removes the dominant
+memory term for very large catalogs. Extrapolation: at 80k stars (mag≤9), pair count is
+~3.2 G, so peak `pair_endpoints` is ~25 GB — still big, but ~3× smaller than the prior
+sort-path peak and closer to fitting on a 32-64 GB workstation. Disk-streaming external
+sort remains available as a future fix if 80k+ exceeds the in-memory ceiling.
+
+## 2026-05-09: `--calibration-json` Umbrella Flag For Both Identifiers
+
+Both `scripts/identify_stars_with_pair_index.py` and `apps/lost_in_space_pair_id` now
+accept `--calibration-json <path>` that fills in any unset
+`--fx/--fy/--cx/--cy/--distortion-k1/k2/p1/p2` from a JSON file. Schema matches the
+`truth.json` written by `scripts/generate_star_tracker_observations_from_catalog.py`:
+
+```json
+{
+  "intrinsics": {"fx": 1000.0, "fy": 1000.0, "cx": 512.0, "cy": 512.0},
+  "distortion": {"k1": -0.1, "k2": 0.0, "p1": 0.0, "p2": 0.0}
+}
+```
+
+The C++ identifier uses a single regex per key (no JSON dependency added) — the
+generator's schema has each key in a unique location so a substring search is sufficient.
+
+Verification on the k1=-0.1 distortion fixture (16-star × 16000 pair index):
+
+| Path | Py output | C++ output | C++ vs Py |
+| --- | --- | --- | --- |
+| Individual flags | `py_undistort.csv` | `cpp_undistort.csv` | byte-exact (existing) |
+| `--calibration-json truth.json` | `py_calib_json.csv` | `cpp_calib_json.csv` | byte-exact |
+| Explicit flag override | `py_override.csv` (`--distortion-k1 0`) | `cpp_override.csv` (`--distortion-k1 0`) | byte-exact, matches uncalibrated baseline |
+
+All three paths between Py and C++ are byte-exact, and `--calibration-json` is byte-exact
+against the equivalent individual-flag invocation. Override semantics work in both
+directions: passing `--distortion-k1 0` alongside the JSON correctly disables
+undistortion, dropping the assigned observation count back to the broken-uncalibrated
+baseline (6/16) — the same result as not using either flag set.
+
+Decision: `--calibration-json` is now the recommended way to invoke either identifier on
+data accompanied by a `truth.json` (or the production equivalent). The 500-star
+no-calibration regression test still passes byte-exact, so the change is fully
+backward-compatible.
+
+## 2026-05-09: Edge-Biased False Detections Realism Axis
+
+`scripts/drop_star_ids.py` gained `--false-edge-fraction` and `--false-edge-band-px`
+flags. The edge-biased mode samples a side (top/bottom/left/right) uniformly, then
+distance-from-edge ∈ [0, band] and along-edge ∈ [0, side_length]. Models lens-flare /
+sensor-edge artifacts that cluster around the image perimeter — a more realistic
+distribution than the existing uniform-random and near-real-star modes.
+
+The four false-detection modes (`hot`, `edge`, `near`, `uniform`) now form a cumulative
+partition: each fraction consumes its share of the *remaining* probability mass after
+the higher-priority modes, so they never overlap.
+
+### Sweep — 16 true stars + N false detections, single attempt (no restart)
+
+Source observations: `/tmp/pair_id_compare/distortion_sweep/k1_0/observations.csv` (16
+true stars, no distortion). Identifier: C++ `--pyramid-size 6` against the 16000-star
+HYG mag≤6.5 index. Edge band = 24 px (1024×1024 image).
+
+| False mode | False count | Correct | Wrong | Assigned-on-false | Assigned total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| uniform | 0 | 15/16 | 1 | 0 | 16 |
+| edge | 0 | 15/16 | 1 | 0 | 16 |
+| uniform | 4 | 15/16 | 1 | 0 | 16 |
+| edge | 4 | 15/16 | 1 | 0 | 16 |
+| uniform | 8 | 15/16 | 1 | 0 | 16 |
+| edge | 8 | 15/16 | 1 | 0 | 16 |
+| uniform | 12 | 15/16 | 1 | 0 | 16 |
+| edge | 12 | **0/16** | 1 | **4** | 5 |
+
+Uniform false detections are absorbed cleanly through false=12 (44% false rate).
+Edge-biased false detections trip the identifier at false=12: only 5 observations get
+assigned and 4 of those are false-detection rows landing on real catalog stars — a
+catastrophic single-pass failure.
+
+### Recovery with `--pyramid-restarts 3`
+
+Re-running the edge=12 trial with `--pyramid-restarts 3 --confidence-fraction 0.5`:
+
+| Mode | False | Restarts | Correct | Wrong | Assigned-on-false | Attempts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| edge | 12 | 3 | 15/16 | 1 | 0 | 2 (won on attempt 1) |
+
+The restart strategy recovers full correctness on the second attempt. So
+edge-biased false detections are a **restart-fixable failure mode**, consistent with
+the documented hypothesis that pyramid restart already covers the practical
+catastrophe surface. This is fresh evidence against prematurely implementing top-K
+verified-hypothesis ranking (PLAN item 5) — restart is sufficient here.
+
+Open follow-ups:
+
+- Higher edge-band widths (e.g. 64 / 128 px) and combinations with `--false-near-fraction`
+  or hot-pixel modes — does the failure surface widen at higher mixed-mode budgets?
+- Magnitude-aware false-positive intensity is the remaining single-axis realism gap;
+  needs catalog magnitudes plumbed through `drop_star_ids.py` so false detections can
+  cluster at brighter (or specifically bright-spike) magnitudes.
+
+## 2026-05-09: Observation-Side Magnitude Realism Axis
+
+The last realism gap closes: observation CSVs now carry a `mag` column populated from
+the catalog magnitude of the synthesized star. Both identifiers consume it as a tighter
+verification prior — `score = error + magnitude_prior_rad * |obs_mag - cat_mag|` — and
+fall back to the legacy `score = error + magnitude_prior_rad * cat_mag` when the input
+has no `mag` column.
+
+### Plumbing
+
+- `scripts/generate_star_tracker_observations_from_catalog.py` writes `id,u,v,mag`.
+- `scripts/drop_star_ids.py` preserves the mag column when present and injects false
+  detection magnitudes from a Gaussian (`--false-mag-mean`, `--false-mag-std`).
+- `scripts/identify_stars_with_index.py::load_observations_with_mag` exposes the
+  optional column; `verify_rotation` accepts `observation_magnitudes=None` for the
+  legacy fallback.
+- `apps/lost_in_space_pair_id` mirrors via `LoadedObservations { bearings, magnitudes }`
+  and `identify_lost_in_space()` now takes `observation_magnitudes` (empty = legacy).
+
+### Backwards compat
+
+| Fixture | Path | Result |
+| --- | --- | --- |
+| 500 trial_000 (no mag column) | C++ identifier vs prior reference | byte-exact regression |
+| 500 trial_000 (no mag column) | Python identifier vs prior reference | byte-exact regression |
+
+### Correctness wins
+
+| Fixture | Without mag prior (legacy) | With mag prior |
+| --- | ---: | ---: |
+| 16 truth × 16000 idx (clean) | 15/16, 1 wrong | **16/16, 0 wrong** |
+| 16 truth + 12 edge-biased false (single-pass, no restart) | 0/16 (catastrophic) | **16/16, 0 wrong** |
+
+Two qualitative improvements in one axis:
+
+1. The persistent 1-wrong fixture-specific catalog ambiguity that survived through every
+   prior sweep (distortion 0, undistorted, calibration-json) is **resolved** by the mag
+   prior. A near-twin catalog star at very different magnitude no longer wins on pure
+   angular error.
+
+2. The catastrophic single-pass failure under 44%-rate edge-biased false detections —
+   previously requiring `--pyramid-restarts 3` to recover — now succeeds on attempt 0
+   when observation magnitudes are present. False detections inherit Gaussian mag (mean
+   5, std 1) which still differs from real-star mags enough that the prior pushes
+   correct (obs_mag, cat_mag) pairings to the front.
+
+### Bit-exact gates
+
+- 500-star regression (no mag column) byte-exact across both Py and C++.
+- 16 truth × 16000 idx mag-augmented fixture: Py vs C++ byte-exact assignments CSV.
+- Mag-augmented edge=12 fixture: C++ resolves all 16 observations correctly.
+
+Decision: observation-side magnitude is now the recommended invocation when the
+upstream pipeline has access to per-observation intensity. The fallback path stays
+intact for star-image processing chains that don't yet emit per-detection magnitudes.
+This effectively closes the realism-axis open list — remaining items (catalog aberration,
+magnitude-aware false-positive *intensity* — false detections clustered specifically
+around bright spike pixels rather than uniform Gaussian) are now refinements, not
+fundamental gaps.

@@ -674,3 +674,111 @@ Consequences:
 - 80k+ density still risks OOM (extrapolates to ~50-55 GB peak) — the next memory-side fix is
   a streaming or two-pass build that does not materialize the full pair list at once. Deferred
   until 80k is actually attempted.
+
+## 2026-05-09: C++ Port Of The Pair-Index Identifier (candidate_mappings + verify_rotation + pyramid loop)
+
+Decision: ship `apps/lost_in_space_pair_id` as a full C++ replacement for
+`scripts/identify_stars_with_pair_index.py`, with the algorithm split into a reusable
+`localization::identify_lost_in_space()` library entry. The Python script remains the reference
+implementation; the C++ binary is gated on byte-exact assignments output, not just "works".
+
+Reasoning: the prior session shipped only the loader + metadata print. Continuing the port means
+the deployment path (real-camera star tracker firmware / C++ navigation stack) finally has a
+working identifier, and the bit-exact diff against Python becomes a permanent regression check
+on both the algorithm and the `.bin` format.
+
+Implementation choices that were not obvious from the Python:
+
+- Pandas 3-way merge → AB / AC adjacency maps + a `(b, c)` hash set for the BC join.
+  Insert each pair in both directions to mirror the `concat([pairs, pairs[:, [1,0]]])` step.
+- `np.einsum("ij,ij->i", ...)` → per-triple `Eigen::Vector3d::dot()`. Vectorised batches were
+  considered but the per-triple count is small after the (b, c) filter, and per-triple keeps
+  the inner loop branch-friendly.
+- NumPy LAPACK `gesdd` SVD → `Eigen::JacobiSVD` with `ComputeFullU | ComputeFullV`. The
+  `R = U V^T` product is invariant under per-column sign flips, so the rotation is uniquely
+  determined when singular values are non-degenerate. Empirically `best_rms_error_arcsec`
+  differs at the ~1e-6 arcsec level, which is below the verification tolerance.
+- `csv.writer` defaults to `'\r\n'` line terminators, so the C++ writer emits CRLF too; the
+  binary `.bin` already does (file is opened with `std::ios::binary`).
+- `random.Random.shuffle` (Mersenne Twister + Fisher-Yates with `random()` doubles) is *not*
+  byte-portable to `std::mt19937`. Restart-mode bit-exactness is therefore deferred; the
+  current bit-exact fixtures all succeed on attempt 0, so no shuffles are invoked.
+
+Consequences:
+
+- Bit-exact `cmp` on the assignments CSV: 500 trial_000/001, 2000 trial_000/001 (default and
+  `--pyramid-size 6`), and 16000 (mag≤6.5, catalog-saturated to 8920) `--pyramid-size 6` all
+  pass against the Python reference.
+- Future restart-mode bit-exactness requires re-implementing Python's `random.Random` MT19937
+  state machine + `shuffle`. Not blocking until a fixture genuinely needs restarts on the
+  C++ side.
+- The next C++ work is the sibling `build_star_pair_index` port (Python build is the long pole
+  at mag≤9 / 80k+ stars), and a CI smoke that builds the C++ binary and `cmp`s its output
+  against Python on a checked-in 500-star fixture.
+
+## 2026-05-09: C++ Port Of `build_star_pair_index`
+
+Decision: ship `apps/build_star_pair_index` as a bit-exact replacement for the Python
+`scripts/build_star_pair_index.py --write-bin` path. The Python builder remains the reference;
+the C++ binary is gated on byte-exact `.bin` output, not just structural equivalence.
+
+Reasoning: with the C++ identifier already byte-exact and `cv::undistortPoints`-equivalent
+front-door already in place, the last Python dependency on the deployment path was the
+`.bin` build itself. Python build time scales as O(N²): 12.5 s at 16k stars on mag6.5,
+extrapolating past 30 minutes for mag≤9 / 80k+. The C++ version cuts both wall time and
+RSS roughly in half.
+
+Implementation choices that mattered for bit-exactness:
+
+- Catalog parsing: same column-name lookup as `csv.DictReader` (id, x, y, z, optional mag),
+  same default-to-0.0 behaviour on missing/unparsable mag.
+- Vector normalisation: `v / v.norm()` matches `vector / np.linalg.norm(vector)` with no
+  zero-vector special-case.
+- Bin assignment: `std::nearbyint` (default `FE_TONEAREST` → half-to-even) matches
+  `numpy.round`. `std::lround` would have given half-away-from-zero and broken ties.
+- Pair enumeration order: nested `(i, j > i)` loop keeps the same insertion order as
+  Python's vectorised `for i: rest = vectors[i+1:]` flow.
+- Sort: index permutation + `std::stable_sort` by bin matches `np.argsort(kind="stable")`.
+  Within a bin, original `(i, j)` order is preserved on both sides.
+- Bin offsets: emit `bin_keys` and `bin_offsets` in one pass over the sorted permutation,
+  exactly mirroring the Python `np.unique(..., return_index=True)` + `cumsum` pair.
+
+Consequences:
+
+- 500 / 4000 / 16000 (mag6.5) all `cmp` clean against the Python `--write-bin` output.
+- Wall time at 16000 stars: Python 12.5 s, C++ 2.76 s (~4.5× faster).
+- Peak RSS at 16000 stars: Python 748 MB, C++ 393 MB (~50%).
+- The Python builder still emits `.npz` and (optionally) `.pkl`. The C++ builder emits the
+  `.bin` only — that is the format the C++ identifier consumes, so deployment no longer
+  needs Python or NumPy at runtime.
+- mag≤9 / 80k+ becomes practically buildable from C++. Python build at that scale was
+  predicted to take 30+ minutes; C++ extrapolates to ~7 min (within Python ≈ ¼).
+
+## 2026-05-09: 2-Pass Bucket Fill In `apps/build_star_pair_index`
+
+Decision: replace the in-memory collect-then-stable_sort layout in
+`apps/build_star_pair_index` with a 2-pass bucket fill. Pass 1 counts pairs per bin and
+derives `bin_keys` + `bin_offsets`; pass 2 writes each pair into its slot via a per-bin
+cursor. The intermediate `(lhs, rhs, bin)` int32 buffers and the index-permutation
+`stable_sort` are gone.
+
+Reasoning: at 16000 mag6.5 stars the sort path used ~393 MB peak RSS for the int32 sort
+buffers + endpoint array. Extrapolating to 80k mag≤9 (pair count ~3.2 G) the sort path
+would peak around 80-100 GB, well past a 64 GB workstation. The 2-pass approach keeps
+only the final `pair_endpoints` array plus O(n_bins) counters, which is the lower bound
+for storing the output at all. Within-bin order is identical to the sort path because
+the (i, j>i) visitation order is monotone in (i, j) and `np.argsort(kind="stable")`
+preserves it.
+
+Consequences:
+
+- 500 / 4000 / 16000 builds remain byte-exact against the Python `--write-bin` reference.
+- 16000-star wall: 2.07 s (was 2.76 s; the eliminated sort + permutation indirection
+  account for the 25% gain).
+- 16000-star RSS: 134 MB (was 393 MB).
+- The 2-pass walk repeats the per-pair `dot + acos + bin` work, but for moderate
+  catalogs the cache-friendly second pass actually outweighs the doubled compute. Larger
+  catalogs may shift this — if so, cache pair-bin labels per row strip across the two
+  passes.
+- Disk-streaming external sort is the next memory tier (write per-bin chunk files in
+  pass 2 and concatenate); not yet needed because 16000 fits in 134 MB.
