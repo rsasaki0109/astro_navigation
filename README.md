@@ -72,7 +72,7 @@ A virtual descent camera at orbital altitude looks down on the lunar surface;
 the matcher recovers its position from a single frame against a public LRO
 mosaic + LOLA elevation model — no inertial prior, no rover trajectory.
 
-![Real LRO WAC mosaic of Tycho ejecta — left = ortho, right = rendered nadir-pointing rover view at 400 km altitude](docs/figures/trn_lro_tycho/rover.png)
+![Rendered nadir-pointing rover view at 400 km altitude over Tycho — synthesised from a real LRO WAC mosaic + LOLA elevation by per-pixel ray-marching, then matched back against the same mosaic to recover position](docs/figures/trn_lro_tycho/rover.png)
 
 The pipeline fetches LROC WAC tiles via NASA Trek WMTS (~600 KB per scene at
 zoom 5) and a LOLA `LDEM_<ppd>.img` from PDS Geosciences (~2 MB at 4 ppd),
@@ -105,18 +105,18 @@ python3 scripts/lro_trn_demo.py --target tycho \
 
 ![Real LRO WAC mosaic of the Tycho central peak — rendered nadir-pointing rover view at 30 km altitude using WAC z=8 (~82 m/px ortho) + LOLA LDEM_64 (~470 m/px DEM)](docs/figures/trn_lro_tycho_terminal/rover.png)
 
-Stepping the ortho up to WAC z=8 (~82 m/px, 9 tiles ≈ 350 KB) and the
-heightmap up to `LDEM_64` (~470 m/px, ~530 MB one-time download) brings the
-rover camera within terminal-descent range. Best per-target altitude on the
+Stepping the ortho up to WAC z=8 (~82 m/px, 25 tiles ≈ 1 MB at `--tile-radius 2`)
+and the heightmap up to `LDEM_64` (~470 m/px, ~530 MB one-time download) brings
+the rover camera within terminal-descent range. Best per-target altitude on the
 6-target sweep:
 
 | Target | Altitude | Matches | Inliers | Position error |
 | --- | ---: | ---: | ---: | ---: |
-| **Tycho** | 30 km | 82 | 11 | **32 m** |
-| Copernicus | 50 km | 78 | 12 | 29 m |
+| Copernicus (ray crater) | 50 km | 87 | 13 | **30 m** |
+| **Tycho (central peak)** | 30 km | 82 | 11 | **32 m** |
 | Apollo 17 (Taurus-Littrow) | 30 km | 68 | 6 | 43 m |
 | Apollo 12 (Procellarum) | 100 km | 14 | 8 | 93 m |
-| Apollo 15 (Hadley Rille) | 50 km | 92 | — | 130 m |
+| Apollo 15 (Hadley Rille) | 50 km | 105 | 20 | 131 m |
 | Apollo 11 (Tranquillitatis) | 100 km | 35 | 18 | 172 m |
 
 Median ~80 m on a ~92 km × 92 km mosaic — about an order of magnitude tighter
@@ -132,11 +132,14 @@ python3 scripts/lro_trn_demo.py --target tycho \
   --output-dir docs/figures/trn_lro_tycho_terminal
 ```
 
-### Lunar visual odometry on NASA POLAR Traverse 1
+### Lunar visual odometry on NASA POLAR Traverses 1-6
 
 NASA POLAR Traverse 1 (lunar-analogue testbed), left camera 50 ms exposure, 11 frames. Animated:
 SIFT keypoints per frame on the left, the SIFT-monocular VO trajectory accumulating on the right
-(Sim(3) aligned to ground truth, ATE RMSE 0.019 m).
+(Sim(3) aligned to ground truth, ATE RMSE 0.019 m). The same SIFT + rectified-stereo PnP path
+with `--ratio-test 0.85` (looser-than-textbook for dim-light traverses) extends to **65/66
+frames OK across Traverses 1-6**, mean ATE 0.118 m — see headline table for the per-traverse
+breakdown.
 
 ![POLAR Traverse 1 SIFT features + VO trajectory animation](docs/figures/polar_traverse1_vo_demo.gif)
 
@@ -177,6 +180,8 @@ Numbers below are the current best on the corresponding benchmark. Full per-iter
 | Lunar VO (POLAR Traverse1, L 50 ms, monocular SIFT) | 11 frames, Sim(3) alignment | ATE RMSE **0.0186 m**, 11/11 frames OK |
 | Lunar VO (POLAR Traverse1, L 50 ms, rectified stereo + PnP) | 11 frames, SE(3) | ATE RMSE **0.0650 m**, path 10.18 m vs 9.98 m GT |
 | Lunar VO (POLAR Traverse**1-6**, L 50 ms, rectified stereo + PnP, **SIFT** + CLAHE + `--ratio-test 0.85`) | 66 frames total | **65/66 frames OK** (ORB+default-ratio baseline was 15/33 on T4-T6). T1 11/11 ATE 0.028 m, T2 11/11 ATE 0.037 m, T3 11/11 ATE 0.043 m, T4 11/11 ATE 0.069 m, T5 11/11 ATE 0.080 m, T6 10/11 ATE 0.413 m |
+| TRN orbital (real LRO WAC z=5 + LOLA LDEM_4) | 6 targets at 400 km nadir, ~500 km mosaic | All 6 recover position, 0 false positives. Tycho **179 m**, Copernicus 391 m, Apollo 12 300 m, Apollo 15 574 m, Apollo 17 622 m, Apollo 11 1383 m |
+| TRN terminal (real LRO WAC z=8 + LOLA LDEM_64) | 6 targets, best per-target altitude 30-100 km, ~92 km mosaic | All 6 recover position, 0 false positives. Copernicus **30 m**, Tycho **32 m**, Apollo 17 43 m, Apollo 12 93 m, Apollo 15 131 m, Apollo 11 172 m. Median ~80 m, ~10x tighter than orbital |
 
 `--pyramid-size 6 --neighbor-bins 1 --tolerance-arcsec 120` is the operational default for honest-density
 HYG mag≤8 lost-in-space work.
