@@ -8,6 +8,7 @@
 #include <opencv2/features2d.hpp>
 
 #include "astro_localization/core/types.hpp"
+#include "astro_localization/localization/visual_odometry.hpp"
 
 namespace astro::localization {
 
@@ -19,6 +20,7 @@ struct StereoCameraModel {
 };
 
 struct StereoVisualOdometryOptions {
+  FeatureType feature_type{FeatureType::kOrb};
   int max_features{2500};
   double ratio_test{0.75};
   double min_depth_m{0.1};
@@ -64,6 +66,8 @@ class StereoVisualOdometry {
   struct StereoFrame {
     Features left;
     std::vector<std::optional<cv::Point3f>> left_points_m;
+    Features depth_features;
+    std::vector<cv::Point3f> depth_points_m;
     int stereo_match_count{0};
     int valid_3d_point_count{0};
   };
@@ -74,8 +78,10 @@ class StereoVisualOdometry {
 
   StereoCameraModel camera_;
   StereoVisualOdometryOptions options_;
-  cv::Ptr<cv::ORB> detector_;
+  cv::Ptr<cv::Feature2D> detector_;
   std::optional<StereoFrame> previous_frame_;
+  std::optional<StereoFrame> last_good_frame_;
+  Eigen::Isometry3d T_world_at_last_good_{Eigen::Isometry3d::Identity()};
   Eigen::Isometry3d T_world_camera_{Eigen::Isometry3d::Identity()};
   std::size_t frame_index_{0};
 };
