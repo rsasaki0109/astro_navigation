@@ -90,6 +90,21 @@ def main() -> int:
         default=1.0,
         help="Std-dev of the Gaussian magnitude assigned to false detections.",
     )
+    parser.add_argument(
+        "--false-mag-hot-mean",
+        type=float,
+        default=None,
+        help="Mean magnitude for hot-pixel false detections specifically (read-noise spikes "
+        "typically saturate and look brighter than ambient noise). Default None reuses "
+        "--false-mag-mean for all branches (back-compat).",
+    )
+    parser.add_argument(
+        "--false-mag-hot-std",
+        type=float,
+        default=None,
+        help="Std-dev for hot-pixel false detection magnitudes. Default None reuses "
+        "--false-mag-std for all branches.",
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -116,7 +131,9 @@ def main() -> int:
 
     for _ in range(args.false_count):
         roll = rng.random()
+        false_branch = "uniform"
         if args.hot_pixel_fraction > 0.0 and roll < threshold_hot:
+            false_branch = "hot"
             hu, hv = rng.choice(hot_pixels)
             u = hu + rng.gauss(0.0, args.hot_pixel_sigma_px)
             v = hv + rng.gauss(0.0, args.hot_pixel_sigma_px)
@@ -147,7 +164,16 @@ def main() -> int:
         v = min(max(v, 0.0), args.height)
         false_row = {"u": f"{u:.6f}", "v": f"{v:.6f}"}
         if carries_mag:
-            false_mag = rng.gauss(args.false_mag_mean, args.false_mag_std)
+            if false_branch == "hot" and args.false_mag_hot_mean is not None:
+                mag_mean = args.false_mag_hot_mean
+                mag_std = (
+                    args.false_mag_hot_std if args.false_mag_hot_std is not None
+                    else args.false_mag_std
+                )
+            else:
+                mag_mean = args.false_mag_mean
+                mag_std = args.false_mag_std
+            false_mag = rng.gauss(mag_mean, mag_std)
             false_row["mag"] = f"{false_mag:.4f}"
         rows.append(false_row)
     rng.shuffle(rows)

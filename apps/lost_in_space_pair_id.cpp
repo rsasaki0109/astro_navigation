@@ -79,7 +79,8 @@ void print_usage(const char* prog) {
                " [--verification-tolerance-arcsec ...] [--magnitude-prior-arcsec ...]"
                " [--max-observation-triangles ...] [--max-candidates-per-observation-triangle ...]"
                " [--max-verified-hypotheses ...] [--pyramid-size ...] [--pyramid-restarts ...]"
-               " [--confidence-fraction ...] [--pyramid-restart-seed ...]\n";
+               " [--confidence-fraction ...] [--pyramid-restart-seed ...]"
+               " [--fov-radius-deg ...]\n";
 }
 
 Args parse_args(int argc, char** argv) {
@@ -140,8 +141,10 @@ Args parse_args(int argc, char** argv) {
       args.p1 = parse_double(require_value(key), key);
     } else if (key == "--distortion-p2") {
       args.p2 = parse_double(require_value(key), key);
-    }
- else if (key == "--help" || key == "-h") {
+    } else if (key == "--fov-radius-deg") {
+      args.config.fov_radius_rad =
+          parse_double(require_value(key), key) * M_PI / 180.0;
+    } else if (key == "--help" || key == "-h") {
       print_usage(argv[0]);
       std::exit(EXIT_SUCCESS);
     } else {
@@ -338,6 +341,12 @@ void write_metadata_json(
       << format_double(args.config.verification_tolerance_arcsec) << ",\n";
   out << "  \"magnitude_prior_arcsec\": "
       << format_double(args.config.magnitude_prior_arcsec) << ",\n";
+  if (std::isfinite(args.config.fov_radius_rad)) {
+    out << "  \"fov_radius_deg\": "
+        << format_double(args.config.fov_radius_rad * 180.0 / M_PI) << ",\n";
+  } else {
+    out << "  \"fov_radius_deg\": null,\n";
+  }
   out << "  \"max_candidates_per_observation_triangle\": "
       << args.config.max_candidates_per_observation_triangle << ",\n";
   out << "  \"max_verified_hypotheses\": " << args.config.max_verified_hypotheses << ",\n";

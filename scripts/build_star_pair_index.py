@@ -107,6 +107,40 @@ def edge_bin(edge: float, bin_size_rad: float) -> int:
     return int(round(edge / bin_size_rad))
 
 
+_DEFAULT_SKY_CELL_LAT = 4
+_DEFAULT_SKY_CELL_LON = 12
+
+
+def sky_cell_id_array(vectors: np.ndarray, n_lat: int, n_lon: int) -> np.ndarray:
+    """Vectorized sky-cell id lookup for unit vectors.
+
+    Partitions the sphere into `n_lat` equal-area latitude bands (uniform in `sin(dec) = z`)
+    and `n_lon` equal-longitude slices per band → `n_lat * n_lon` cells. Cell IDs are
+    `lat_bin * n_lon + lon_bin` and fit in int16 for any reasonable (n_lat, n_lon).
+    """
+    z = vectors[:, 2].astype(np.float64, copy=False)
+    lat_bin = np.clip(((z + 1.0) * 0.5 * n_lat).astype(np.int64), 0, n_lat - 1)
+    phi = np.arctan2(vectors[:, 1], vectors[:, 0])
+    lon_bin = (((phi + math.pi) / (2.0 * math.pi)) * n_lon).astype(np.int64) % n_lon
+    return (lat_bin * n_lon + lon_bin).astype(np.int16)
+
+
+def sky_cell_centers(n_lat: int, n_lon: int) -> np.ndarray:
+    """Unit-vector centers of the `n_lat * n_lon` sky cells, ordered by id."""
+    centers: list[list[float]] = []
+    for lat_bin in range(n_lat):
+        z_min = -1.0 + lat_bin / n_lat * 2.0
+        z_max = -1.0 + (lat_bin + 1) / n_lat * 2.0
+        z_center = 0.5 * (z_min + z_max)
+        cos_lat = math.sqrt(max(0.0, 1.0 - z_center * z_center))
+        for lon_bin in range(n_lon):
+            phi_center = -math.pi + (lon_bin + 0.5) / n_lon * 2.0 * math.pi
+            centers.append(
+                [cos_lat * math.cos(phi_center), cos_lat * math.sin(phi_center), z_center]
+            )
+    return np.asarray(centers, dtype=np.float64)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, required=True)
@@ -126,6 +160,18 @@ def main() -> int:
         action="store_true",
         help="Also dual-write a flat binary `.bin` next to the `.npz` for zero-dependency C++ "
         "consumption (no zlib required).",
+    )
+    parser.add_argument(
+        "--sky-cell-lat",
+        type=int,
+        default=_DEFAULT_SKY_CELL_LAT,
+        help="Latitude bands for the sky-cell partition stored alongside the catalog vectors.",
+    )
+    parser.add_argument(
+        "--sky-cell-lon",
+        type=int,
+        default=_DEFAULT_SKY_CELL_LON,
+        help="Longitude slices per latitude band. Total cells = lat * lon.",
     )
     args = parser.parse_args()
 
@@ -222,6 +268,7 @@ def main() -> int:
             pickle.dump(payload, handle)
         del index, payload
 
+    cell_ids_arr = sky_cell_id_array(vectors_arr, args.sky_cell_lat, args.sky_cell_lon)
     npz_path = args.output.with_suffix(".npz")
     np.savez_compressed(
         npz_path,
@@ -236,6 +283,9 @@ def main() -> int:
         bin_keys=bin_keys_arr,
         bin_offsets=bin_offsets_arr,
         pair_endpoints=pair_endpoints_arr,
+        sky_cell_ids=cell_ids_arr,
+        sky_cell_lat=np.int32(args.sky_cell_lat),
+        sky_cell_lon=np.int32(args.sky_cell_lon),
     )
 
     bin_path = args.output.with_suffix(".bin") if args.write_bin else None
@@ -262,6 +312,9 @@ def main() -> int:
         "bin_arcsec": args.bin_arcsec,
         "min_edge_deg": args.min_edge_deg,
         "max_edge_deg": args.max_edge_deg,
+        "sky_cell_lat": args.sky_cell_lat,
+        "sky_cell_lon": args.sky_cell_lon,
+        "sky_cells": int(args.sky_cell_lat * args.sky_cell_lon),
         "pkl_path": None if args.skip_pkl else str(args.output),
         "npz_path": str(npz_path),
         "bin_path": str(bin_path) if bin_path is not None else None,

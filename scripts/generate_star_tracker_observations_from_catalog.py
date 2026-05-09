@@ -64,6 +64,16 @@ def main() -> int:
         "`pmdec_mas_yr * years` in Dec before projecting to the camera. Tests catalog freshness.",
     )
     parser.add_argument(
+        "--annual-aberration-deg",
+        type=float,
+        default=None,
+        help="If set, apply first-order stellar aberration for an Earth orbital phase of this "
+        "angle (degrees, 0 = vernal equinox direction of motion). β = v_earth/c ≈ 1e-4, max "
+        "shift ≈ 20.5 arcsec. Each catalog unit vector u becomes normalize(u + β * v_hat) "
+        "where v_hat is the Earth velocity direction in the equatorial frame "
+        "(ecliptic obliquity ignored — small enough for this scale). Default None disables.",
+    )
+    parser.add_argument(
         "--distortion-k1",
         type=float,
         default=0.0,
@@ -96,6 +106,17 @@ def main() -> int:
     candidates: list[tuple[str, np.ndarray, float, float, float]] = []
     pm_active = args.apply_proper_motion_years != 0.0
     mas_to_rad = math.radians(1.0 / 3600.0 / 1000.0)
+
+    aberration_active = args.annual_aberration_deg is not None
+    if aberration_active:
+        # Earth orbital speed ~29.78 km/s, c = 299792.458 km/s → β ≈ 9.94e-5.
+        # v_hat is along Earth's velocity in the inertial frame; we approximate the equatorial
+        # frame as the ecliptic frame (drops the 23.4° obliquity tilt — sub-arcsec error at
+        # this scale is below the centroid noise floor).
+        beta = 29.7827 / 299792.458
+        phi = math.radians(args.annual_aberration_deg)
+        aberration_v_hat = np.array([-math.sin(phi), math.cos(phi), 0.0])
+        aberration_kick = beta * aberration_v_hat
     with args.catalog.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             direction_catalog = normalize(
@@ -123,6 +144,8 @@ def main() -> int:
                 )
             else:
                 direction_inertial = direction_catalog
+            if aberration_active:
+                direction_inertial = normalize(direction_inertial + aberration_kick)
             direction_camera = rotation_camera_inertial @ direction_inertial
             if direction_camera[2] <= 0.0:
                 continue
@@ -211,6 +234,8 @@ def main() -> int:
             "p1": args.distortion_p1,
             "p2": args.distortion_p2,
         },
+        "annual_aberration_deg": args.annual_aberration_deg,
+        "apply_proper_motion_years": args.apply_proper_motion_years,
     }
     (args.output_dir / "truth.json").write_text(json.dumps(truth, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {args.output_dir} from {len(candidates)} visible catalog stars")
