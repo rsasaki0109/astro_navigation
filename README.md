@@ -101,6 +101,37 @@ python3 scripts/lro_trn_demo.py --target tycho \
   --output-dir docs/figures/trn_lro_tycho
 ```
 
+**Terminal descent (30-100 km altitude, finer LRO data):**
+
+![Real LRO WAC mosaic of the Tycho central peak — rendered nadir-pointing rover view at 30 km altitude using WAC z=8 (~82 m/px ortho) + LOLA LDEM_64 (~470 m/px DEM)](docs/figures/trn_lro_tycho_terminal/rover.png)
+
+Stepping the ortho up to WAC z=8 (~82 m/px, 9 tiles ≈ 350 KB) and the
+heightmap up to `LDEM_64` (~470 m/px, ~530 MB one-time download) brings the
+rover camera within terminal-descent range. Best per-target altitude on the
+6-target sweep:
+
+| Target | Altitude | Matches | Inliers | Position error |
+| --- | ---: | ---: | ---: | ---: |
+| **Tycho** | 30 km | 82 | 11 | **32 m** |
+| Copernicus | 50 km | 78 | 12 | 29 m |
+| Apollo 17 (Taurus-Littrow) | 30 km | 68 | 6 | 43 m |
+| Apollo 12 (Procellarum) | 100 km | 14 | 8 | 93 m |
+| Apollo 15 (Hadley Rille) | 50 km | 92 | — | 130 m |
+| Apollo 11 (Tranquillitatis) | 100 km | 35 | 18 | 172 m |
+
+Median ~80 m on a ~92 km × 92 km mosaic — about an order of magnitude tighter
+than the orbital cycle 3 numbers. Below ~30 km altitude, parallax distortion
+from the real heightmap (Tycho rim at +1.8 km vs camera at 30 km altitude →
+~6% image-position shift) starts breaking SIFT scale-space matching; that
+cliff is the next-cycle target (ASIFT or render-time orthorectification).
+
+```bash
+python3 scripts/lro_trn_demo.py --target tycho \
+  --zoom 8 --tile-radius 2 --ldem-ppd 64 \
+  --rover-altitude-m 30000 \
+  --output-dir docs/figures/trn_lro_tycho_terminal
+```
+
 ### Lunar visual odometry on NASA POLAR Traverse 1
 
 NASA POLAR Traverse 1 (lunar-analogue testbed), left camera 50 ms exposure, 11 frames. Animated:

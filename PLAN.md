@@ -1,6 +1,15 @@
 # astro_localization Handoff Plan
 
-Last updated: 2026-05-09 (TRN cycle 3 landed: real LRO WAC mosaic + LOLA LDEM
+Last updated: 2026-05-09 (TRN cycle 4 landed: terminal-descent extension on
+real LRO/LOLA. WAC z=8 (~82 m/px, 25 tiles ~ 1 MB total) + LOLA LDEM_64
+(~470 m/px, 530 MB one-time download) bring the rover camera to 30-100 km
+altitude. Best per-target results: Tycho **32 m** @ 30 km, Copernicus 29 m @
+50 km, Apollo 17 43 m @ 30 km, Apollo 12 93 m @ 100 km, Apollo 15 130 m @ 50 km,
+Apollo 11 172 m @ 100 km. Median ~80 m on a ~92 km mosaic — order of magnitude
+tighter than orbital cycle 3. Cliff: below ~30 km altitude the real heightmap's
+parallax distortion (Tycho rim +1.8 km vs camera 30 km altitude → 6 % image-pos
+shift) breaks SIFT scale-space; ASIFT or render-time orthorectification is the
+next-cycle lever for full terminal touchdown. TRN cycle 3 landed: real LRO WAC mosaic + LOLA LDEM
 adapter via NASA Trek WMTS + PDS Geosciences direct download. New script
 `scripts/lro_trn_demo.py` reuses the cycle-2 forward render + AP3P PnP on real
 imagery. 6-target sweep at 400 km orbital descent / z=5 ortho: all six (Apollo
