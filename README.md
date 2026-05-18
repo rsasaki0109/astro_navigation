@@ -1,12 +1,49 @@
 # astro_localization
 
-`astro_localization` is an early-stage C++20 OSS for localization and navigation in GNSS-denied space
-robotics: lunar/Mars rovers, orbital robots, planetary explorers, and terrain-relative navigation.
+`astro_localization` is an early-stage C++20 + Python toolkit for localization and navigation in
+GNSS-denied space robotics: lunar/Mars rovers, orbital robots, planetary explorers, star trackers,
+and terrain-relative navigation.
 
-The focus is space-specific localization. First-class directions are **star tracker attitude**,
-**lost-in-space star identification** against public catalogs, **lunar visual odometry**, and
-**terrain-relative navigation** — not generic Earth robotics VO. The implementation is deliberately
-small so that experiments converge quickly, and the Python prototypes live alongside the C++ apps.
+The project is intentionally space-native: **star tracker attitude**, **lost-in-space star
+identification** against public catalogs, **lunar visual odometry**, and **terrain-relative
+navigation on real LRO/LOLA data** — not generic Earth robotics VO with lunar branding. The
+implementation is deliberately small so experiments converge quickly, and Python prototypes live
+alongside the C++ apps.
+
+## Why Watch This Repo
+
+- **Real mission-shaped demos:** star tracker attitude and terrain-relative navigation run together
+  in a lunar descent story, with no inertial prior or temporal filter hiding the per-frame result.
+- **Public-data reproducibility:** HYG stars, NASA POLAR, LRO WAC, and LOLA are the main validation
+  sources; scripts record source URLs, checksums, and data-size warnings.
+- **C++ deliverables, Python iteration:** core paths are moving into C++20 while Python remains the
+  fast experiment harness for benchmarks, renderers, and dataset adapters.
+- **Honest envelopes:** the docs keep both wins and cliffs, including false-detection star ID
+  failures, WAC/LOLA altitude limits, and current TRN parallax failure modes.
+
+## Five-Minute Demo
+
+This synthetic star-tracker smoke test has no external dataset dependency. It generates an identified
+star field, estimates camera attitude in C++, and prints the recovered quaternion.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+
+python3 scripts/generate_star_tracker_case.py --output-dir outputs/quick_star_case
+
+build/apps/star_tracker_attitude \
+  --catalog outputs/quick_star_case/catalog.csv \
+  --observations outputs/quick_star_case/observations.csv \
+  --fx 1000 --fy 1000 --cx 512 --cy 512
+```
+
+Expected shape:
+
+```text
+success,correspondences,rms_direction_error_rad,qx,qy,qz,qw,status
+1,30,...
+```
 
 ## Demo
 
@@ -314,6 +351,12 @@ checksum.
 - [`docs/decisions.md`](docs/decisions.md) — design decisions and rationale.
 - [`docs/interfaces.md`](docs/interfaces.md) — CSV/binary interface contracts.
 - [`PLAN.md`](PLAN.md) — current and upcoming work.
+
+## Contributing
+
+The most useful contributions are reproducible experiments, small C++ ports of proven Python paths,
+dataset adapters, and focused benchmark fixes. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the
+development loop and good first contribution areas.
 
 ## Roadmap
 
