@@ -33,8 +33,8 @@ Examples:
 The existing `localization/` module remains as a functional submodule because it still contains
 star tracker, VO, stereo VO, and lost-in-space estimators.
 
-The local checkout directory is still named `astro_localization`; only code/project naming has been
-changed so far.
+The GitHub repository has been renamed to `astro_navigation`. The local checkout directory may still
+be named `astro_localization` until it is recloned or moved locally.
 
 ## New Navigation Module
 
