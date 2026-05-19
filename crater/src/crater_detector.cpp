@@ -1,7 +1,6 @@
-#include "astro_localization/crater/crater_detector.hpp"
+#include "astro_navigation/crater/crater_detector.hpp"
 
 #include <algorithm>
-
 #include <opencv2/imgproc.hpp>
 
 namespace astro::crater {
@@ -22,11 +21,9 @@ std::vector<CraterCandidate> detectCircularCraters(const cv::Mat& gray_image,
   for (const auto& circle : circles) {
     candidates.push_back({cv::Point2f(circle[0], circle[1]), circle[2], circle[2]});
   }
-  std::ranges::sort(candidates, [](const auto& lhs, const auto& rhs) {
-    return lhs.score > rhs.score;
-  });
+  std::ranges::sort(candidates,
+                    [](const auto& lhs, const auto& rhs) { return lhs.score > rhs.score; });
   return candidates;
 }
 
 }  // namespace astro::crater
-

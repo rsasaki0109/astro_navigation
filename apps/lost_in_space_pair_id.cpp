@@ -3,6 +3,7 @@
 // pyramid+restart loop, and writes assignments CSV + metadata JSON matching
 // the Python reference on the same fixtures.
 
+#include <Eigen/Core>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -20,10 +21,8 @@
 #include <string>
 #include <vector>
 
-#include <Eigen/Core>
-
-#include "astro_localization/localization/pair_id_solver.hpp"
-#include "astro_localization/localization/pair_index_loader.hpp"
+#include "astro_navigation/localization/pair_id_solver.hpp"
+#include "astro_navigation/localization/pair_index_loader.hpp"
 
 namespace {
 
@@ -54,7 +53,7 @@ struct Args {
   std::filesystem::path calibration_json_path;
   std::optional<double> fx, fy, cx, cy;
   std::optional<double> k1, k2, p1, p2;
-  astro_localization::localization::LostInSpaceConfig config;
+  astro_navigation::localization::LostInSpaceConfig config;
 };
 
 // Minimal regex-based extractor for the camera-calibration JSON schema written
@@ -73,7 +72,8 @@ std::optional<double> extract_json_number(const std::string& text, const std::st
 }
 
 void print_usage(const char* prog) {
-  std::cerr << "usage: " << prog << " --observations <obs.csv> --index <pair.bin>"
+  std::cerr << "usage: " << prog
+            << " --observations <obs.csv> --index <pair.bin>"
                " --output <assignments.csv> --fx <fx> --fy <fy> --cx <cx> --cy <cy>"
                " [--tolerance-arcsec ...] [--neighbor-bins ...]"
                " [--verification-tolerance-arcsec ...] [--magnitude-prior-arcsec ...]"
@@ -142,8 +142,7 @@ Args parse_args(int argc, char** argv) {
     } else if (key == "--distortion-p2") {
       args.p2 = parse_double(require_value(key), key);
     } else if (key == "--fov-radius-deg") {
-      args.config.fov_radius_rad =
-          parse_double(require_value(key), key) * M_PI / 180.0;
+      args.config.fov_radius_rad = parse_double(require_value(key), key) * M_PI / 180.0;
     } else if (key == "--help" || key == "-h") {
       print_usage(argv[0]);
       std::exit(EXIT_SUCCESS);
@@ -191,9 +190,8 @@ Args parse_args(int argc, char** argv) {
 // Iterative inverse Brown-Conrady: forward distortion matches Python's
 // scripts/identify_stars_with_index._undistort_normalized so both identifiers
 // produce the same bearings for the same coefficients.
-std::pair<double, double> undistort_normalized(
-    double x_d, double y_d, double k1, double k2, double p1, double p2,
-    int iterations = 8) {
+std::pair<double, double> undistort_normalized(double x_d, double y_d, double k1, double k2,
+                                               double p1, double p2, int iterations = 8) {
   double x = x_d;
   double y = y_d;
   for (int n = 0; n < iterations; ++n) {
@@ -212,9 +210,9 @@ struct LoadedObservations {
   std::vector<double> magnitudes;  // empty when input has no `mag` column
 };
 
-LoadedObservations load_observations(
-    const std::filesystem::path& path, double fx, double fy, double cx, double cy,
-    double k1 = 0.0, double k2 = 0.0, double p1 = 0.0, double p2 = 0.0) {
+LoadedObservations load_observations(const std::filesystem::path& path, double fx, double fy,
+                                     double cx, double cy, double k1 = 0.0, double k2 = 0.0,
+                                     double p1 = 0.0, double p2 = 0.0) {
   const bool distortion_active = (k1 != 0.0) || (k2 != 0.0) || (p1 != 0.0) || (p2 != 0.0);
   std::ifstream stream(path);
   if (!stream) {
@@ -244,9 +242,12 @@ LoadedObservations load_observations(
   std::vector<std::string> header_columns = split_csv(line);
   int u_col = -1, v_col = -1, mag_col = -1;
   for (int i = 0; i < static_cast<int>(header_columns.size()); ++i) {
-    if (header_columns[i] == "u") u_col = i;
-    else if (header_columns[i] == "v") v_col = i;
-    else if (header_columns[i] == "mag") mag_col = i;
+    if (header_columns[i] == "u")
+      u_col = i;
+    else if (header_columns[i] == "v")
+      v_col = i;
+    else if (header_columns[i] == "mag")
+      mag_col = i;
   }
   if (u_col < 0 || v_col < 0) {
     throw std::runtime_error("observations CSV must contain 'u' and 'v' columns");
@@ -279,9 +280,8 @@ LoadedObservations load_observations(
   return loaded;
 }
 
-void write_assignments_csv(
-    const std::filesystem::path& path,
-    const std::map<int, std::string>& assignments) {
+void write_assignments_csv(const std::filesystem::path& path,
+                           const std::map<int, std::string>& assignments) {
   if (path.has_parent_path()) {
     std::filesystem::create_directories(path.parent_path());
   }
@@ -310,12 +310,10 @@ std::string optional_arcsec(double rad) {
   return format_double(arcsec);
 }
 
-void write_metadata_json(
-    const std::filesystem::path& csv_path,
-    const astro_localization::localization::LostInSpaceResult& result,
-    const astro_localization::localization::PairIndex& index,
-    const Args& args,
-    std::size_t observation_count) {
+void write_metadata_json(const std::filesystem::path& csv_path,
+                         const astro_navigation::localization::LostInSpaceResult& result,
+                         const astro_navigation::localization::PairIndex& index, const Args& args,
+                         std::size_t observation_count) {
   std::filesystem::path json_path = csv_path;
   json_path.replace_extension(".json");
 
@@ -339,11 +337,11 @@ void write_metadata_json(
   out << "  \"neighbor_bins\": " << args.config.neighbor_bins << ",\n";
   out << "  \"verification_tolerance_arcsec\": "
       << format_double(args.config.verification_tolerance_arcsec) << ",\n";
-  out << "  \"magnitude_prior_arcsec\": "
-      << format_double(args.config.magnitude_prior_arcsec) << ",\n";
+  out << "  \"magnitude_prior_arcsec\": " << format_double(args.config.magnitude_prior_arcsec)
+      << ",\n";
   if (std::isfinite(args.config.fov_radius_rad)) {
-    out << "  \"fov_radius_deg\": "
-        << format_double(args.config.fov_radius_rad * 180.0 / M_PI) << ",\n";
+    out << "  \"fov_radius_deg\": " << format_double(args.config.fov_radius_rad * 180.0 / M_PI)
+        << ",\n";
   } else {
     out << "  \"fov_radius_deg\": null,\n";
   }
@@ -373,13 +371,12 @@ void write_metadata_json(
 int main(int argc, char** argv) {
   try {
     const Args args = parse_args(argc, argv);
-    const auto index = astro_localization::localization::load_pair_index_bin(args.index_path);
-    const auto loaded = load_observations(
-        args.observations_path, *args.fx, *args.fy, *args.cx, *args.cy,
-        args.k1.value_or(0.0), args.k2.value_or(0.0),
-        args.p1.value_or(0.0), args.p2.value_or(0.0));
+    const auto index = astro_navigation::localization::load_pair_index_bin(args.index_path);
+    const auto loaded = load_observations(args.observations_path, *args.fx, *args.fy, *args.cx,
+                                          *args.cy, args.k1.value_or(0.0), args.k2.value_or(0.0),
+                                          args.p1.value_or(0.0), args.p2.value_or(0.0));
 
-    const auto result = astro_localization::localization::identify_lost_in_space(
+    const auto result = astro_navigation::localization::identify_lost_in_space(
         loaded.bearings, loaded.magnitudes, index, args.config);
 
     std::map<int, std::string> assignments_by_id;

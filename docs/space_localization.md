@@ -1,6 +1,6 @@
-# Space Localization Focus
+# Space Navigation Focus
 
-`astro_localization` should not become a generic Earth robotics VO package. The main direction is
+`astro_navigation` should not become a generic Earth robotics VO package. The main direction is
 space-specific localization and navigation where GNSS is unavailable and planetary/orbital sensors matter.
 
 ## Primary Modes
@@ -59,6 +59,24 @@ Current 30-star result:
 
 This still assumes identified stars. The next star tracker step is a public catalog adapter and a simple
 lost-in-space matcher.
+
+## Initial Navigation State Interface
+
+The `astro_navigation::navigation` target provides the first navigation-facing state layer. It keeps
+localization estimators as inputs and exposes mission state health:
+
+- `NavState`: timestamp, frame IDs, position, velocity, attitude, covariance, quality, and status.
+- `NavStatus`: `UNKNOWN`, `OK`, `DEGRADED`, `LOST`, and `RELOCALIZING`.
+- `fromStarTrackerEstimate()`: converts a star-tracker attitude estimate into an attitude lock.
+- `applyPositionLock()`: attaches a TRN/map position lock and refreshes state health.
+- `loadTrnSummaryPositionLock()`: reads `scripts/lro_trn_demo.py` summary JSON into a position lock.
+- `runMissionNavigation()`: reusable library API used by the demo CLI to combine star tracker and
+  TRN/manual position inputs into a `NavState`.
+
+`apps/mission_navigation_demo` is a thin wrapper over `runMissionNavigation()`. With only a
+star-camera lock it reports `DEGRADED`; with both attitude and a `--trn-summary` position lock it
+reports `OK`. Use `--output-json` or `--output-csv` to save the resulting navigation state for Python
+renderers and benchmark scripts.
 
 ## Public Star Catalog Adapter
 

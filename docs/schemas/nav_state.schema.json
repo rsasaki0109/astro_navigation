@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/astro_navigation/nav_state.schema.json",
+  "title": "astro_navigation NavState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "status",
+    "status_reason",
+    "message",
+    "position_frame_id",
+    "attitude_reference_frame_id",
+    "position_m",
+    "velocity_mps",
+    "q_body_reference_xyzw",
+    "quality",
+    "covariance_6x6"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "number",
+      "description": "State timestamp in seconds."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["UNKNOWN", "OK", "DEGRADED", "LOST", "RELOCALIZING"]
+    },
+    "status_reason": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "NO_LOCKS",
+        "ATTITUDE_ONLY",
+        "POSITION_ONLY",
+        "VELOCITY_MISSING",
+        "HIGH_ATTITUDE_UNCERTAINTY",
+        "HIGH_POSITION_UNCERTAINTY"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "position_frame_id": {
+      "type": "string",
+      "description": "Frame name for position_m and velocity_mps."
+    },
+    "attitude_reference_frame_id": {
+      "type": "string",
+      "description": "Reference frame for q_body_reference_xyzw."
+    },
+    "position_m": {
+      "$ref": "#/$defs/vector3"
+    },
+    "velocity_mps": {
+      "$ref": "#/$defs/vector3"
+    },
+    "q_body_reference_xyzw": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number"
+      },
+      "description": "Unit quaternion in x, y, z, w order."
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attitude_lock",
+        "position_lock",
+        "velocity_lock",
+        "attitude_sigma_rad",
+        "position_sigma_m",
+        "attitude_correspondences"
+      ],
+      "properties": {
+        "attitude_lock": {
+          "type": "boolean"
+        },
+        "position_lock": {
+          "type": "boolean"
+        },
+        "velocity_lock": {
+          "type": "boolean"
+        },
+        "attitude_sigma_rad": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "position_sigma_m": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "attitude_correspondences": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "covariance_6x6": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "array",
+        "minItems": 6,
+        "maxItems": 6,
+        "items": {
+          "type": "number"
+        }
+      },
+      "description": "Pose covariance ordered as x, y, z, roll, pitch, yaw."
+    }
+  },
+  "$defs": {
+    "vector3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    }
+  }
+}

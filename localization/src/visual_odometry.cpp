@@ -1,9 +1,8 @@
-#include "astro_localization/localization/visual_odometry.hpp"
+#include "astro_navigation/localization/visual_odometry.hpp"
 
 #include <algorithm>
-#include <stdexcept>
-
 #include <opencv2/calib3d.hpp>
+#include <stdexcept>
 
 namespace astro::localization {
 namespace {
@@ -129,9 +128,9 @@ MotionEstimate VisualOdometry::estimateMotion(const Features& previous,
   }
 
   cv::Mat inlier_mask;
-  const cv::Mat essential = cv::findEssentialMat(
-      points_previous, points_current, cameraMatrix(intrinsics_), cv::RANSAC,
-      options_.ransac_confidence, options_.ransac_threshold_px, inlier_mask);
+  const cv::Mat essential =
+      cv::findEssentialMat(points_previous, points_current, cameraMatrix(intrinsics_), cv::RANSAC,
+                           options_.ransac_confidence, options_.ransac_threshold_px, inlier_mask);
   if (essential.empty()) {
     motion.message = "essential matrix estimation failed";
     return motion;
@@ -139,9 +138,9 @@ MotionEstimate VisualOdometry::estimateMotion(const Features& previous,
 
   cv::Mat rotation;
   cv::Mat translation;
-  motion.inlier_count = cv::recoverPose(essential, points_previous, points_current,
-                                        cameraMatrix(intrinsics_), rotation, translation,
-                                        inlier_mask);
+  motion.inlier_count =
+      cv::recoverPose(essential, points_previous, points_current, cameraMatrix(intrinsics_),
+                      rotation, translation, inlier_mask);
   if (motion.inlier_count < options_.min_inliers) {
     motion.message = "not enough essential matrix inliers";
     return motion;
@@ -154,4 +153,3 @@ MotionEstimate VisualOdometry::estimateMotion(const Features& previous,
 }
 
 }  // namespace astro::localization
-

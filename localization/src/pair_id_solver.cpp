@@ -1,5 +1,7 @@
-#include "astro_localization/localization/pair_id_solver.hpp"
+#include "astro_navigation/localization/pair_id_solver.hpp"
 
+#include <Eigen/Geometry>
+#include <Eigen/SVD>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -15,18 +17,13 @@
 #include <utility>
 #include <vector>
 
-#include <Eigen/Geometry>
-#include <Eigen/SVD>
-
-namespace astro_localization::localization {
+namespace astro_navigation::localization {
 
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-double to_radians_arcsec(double arcsec) {
-  return (arcsec / 3600.0) * kPi / 180.0;
-}
+double to_radians_arcsec(double arcsec) { return (arcsec / 3600.0) * kPi / 180.0; }
 
 int edge_bin(double edge, double bin_size_rad) {
   // Match python: int(round(edge / bin_size_rad)) — banker's rounding in py3,
@@ -99,9 +96,7 @@ struct Candidate {
 struct PairKey {
   std::int32_t b;
   std::int32_t c;
-  bool operator==(const PairKey& other) const noexcept {
-    return b == other.b && c == other.c;
-  }
+  bool operator==(const PairKey& other) const noexcept { return b == other.b && c == other.c; }
 };
 
 struct PairKeyHash {
@@ -116,16 +111,13 @@ struct PairKeyHash {
 // BC pair lists, edge-error filter, and edge+magnitude scoring. Adjacency maps
 // stand in for pandas's left/right merge; an unordered_set on (b, c) plays the
 // role of the second merge.
-std::vector<Candidate> candidate_mappings(
-    const std::vector<Eigen::Vector3d>& observations,
-    const PairIndex& index,
-    int neighbor_bins,
-    double tolerance_rad,
-    double magnitude_prior_rad,
-    int obs_a, int obs_b, int obs_c,
-    std::vector<std::array<std::int32_t, 2>>& scratch_ab,
-    std::vector<std::array<std::int32_t, 2>>& scratch_ac,
-    std::vector<std::array<std::int32_t, 2>>& scratch_bc) {
+std::vector<Candidate> candidate_mappings(const std::vector<Eigen::Vector3d>& observations,
+                                          const PairIndex& index, int neighbor_bins,
+                                          double tolerance_rad, double magnitude_prior_rad,
+                                          int obs_a, int obs_b, int obs_c,
+                                          std::vector<std::array<std::int32_t, 2>>& scratch_ab,
+                                          std::vector<std::array<std::int32_t, 2>>& scratch_ac,
+                                          std::vector<std::array<std::int32_t, 2>>& scratch_bc) {
   const double edge_ab = angular_distance(observations[obs_a], observations[obs_b]);
   const double edge_ac = angular_distance(observations[obs_a], observations[obs_c]);
   const double edge_bc = angular_distance(observations[obs_b], observations[obs_c]);
@@ -209,10 +201,11 @@ std::vector<Candidate> candidate_mappings(
           continue;
         }
 
-        const double edge_score = std::sqrt(
-            (err_ab * err_ab + err_ac * err_ac + err_bc * err_bc) / 3.0);
-        const double mag_avg = (index.magnitudes(a_value) + index.magnitudes(b_value) +
-                                index.magnitudes(c_value)) / 3.0;
+        const double edge_score =
+            std::sqrt((err_ab * err_ab + err_ac * err_ac + err_bc * err_bc) / 3.0);
+        const double mag_avg =
+            (index.magnitudes(a_value) + index.magnitudes(b_value) + index.magnitudes(c_value)) /
+            3.0;
         Candidate cand;
         cand.score = edge_score + magnitude_prior_rad * mag_avg;
         cand.a = a_value;
@@ -227,16 +220,14 @@ std::vector<Candidate> candidate_mappings(
 }
 
 // Wahba/Kabsch: R = U V^T (with reflection guard) from sum of outer products.
-Eigen::Matrix3d estimate_rotation_camera_inertial(
-    const std::vector<Eigen::Vector3d>& observations,
-    const PairIndex& index,
-    const std::vector<std::pair<int, int>>& pairs) {
+Eigen::Matrix3d estimate_rotation_camera_inertial(const std::vector<Eigen::Vector3d>& observations,
+                                                  const PairIndex& index,
+                                                  const std::vector<std::pair<int, int>>& pairs) {
   Eigen::Matrix3d correlation = Eigen::Matrix3d::Zero();
   for (const auto& [obs_index, cat_index] : pairs) {
     correlation += observations[obs_index] * index.vectors.row(cat_index);
   }
-  Eigen::JacobiSVD<Eigen::Matrix3d> svd(correlation,
-                                        Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd(correlation, Eigen::ComputeFullU | Eigen::ComputeFullV);
   Eigen::Matrix3d U = svd.matrixU();
   const Eigen::Matrix3d V = svd.matrixV();
   Eigen::Matrix3d rotation = U * V.transpose();
@@ -258,14 +249,12 @@ struct VerifyResult {
 // obs, cat) candidates and greedy-assign in score-ascending order.
 // observation_magnitudes is either empty (legacy: scoring uses cat_mag) or
 // sized to observations.size() (scoring uses |obs_mag - cat_mag|).
-VerifyResult verify_rotation(
-    const Eigen::Matrix3d& rotation_camera_inertial,
-    const std::vector<Eigen::Vector3d>& observations,
-    const std::vector<double>& observation_magnitudes,
-    const PairIndex& index,
-    double tolerance_rad,
-    double magnitude_prior_rad,
-    double fov_radius_rad = std::numeric_limits<double>::infinity()) {
+VerifyResult verify_rotation(const Eigen::Matrix3d& rotation_camera_inertial,
+                             const std::vector<Eigen::Vector3d>& observations,
+                             const std::vector<double>& observation_magnitudes,
+                             const PairIndex& index, double tolerance_rad,
+                             double magnitude_prior_rad,
+                             double fov_radius_rad = std::numeric_limits<double>::infinity()) {
   const bool use_obs_mag = !observation_magnitudes.empty();
   const double min_dot = std::cos(tolerance_rad);
 
@@ -302,7 +291,8 @@ VerifyResult verify_rotation(
     return cat_index_map.empty() ? index.magnitudes(local_index) : magnitude_subset(local_index);
   };
   auto cat_index_at = [&](int local_index) {
-    return cat_index_map.empty() ? local_index : cat_index_map[static_cast<std::size_t>(local_index)];
+    return cat_index_map.empty() ? local_index
+                                 : cat_index_map[static_cast<std::size_t>(local_index)];
   };
 
   struct Candidate {
@@ -325,21 +315,21 @@ VerifyResult verify_rotation(
       if (dot < -1.0) dot = -1.0;
       const double error = std::acos(dot);
       const double cat_mag = cat_mag_at(local_cat);
-      const double mag_term = use_obs_mag
-          ? std::abs(cat_mag - observation_magnitudes[static_cast<std::size_t>(obs_index)])
-          : cat_mag;
+      const double mag_term =
+          use_obs_mag
+              ? std::abs(cat_mag - observation_magnitudes[static_cast<std::size_t>(obs_index)])
+              : cat_mag;
       const double score = error + magnitude_prior_rad * mag_term;
       candidates.push_back(Candidate{score, error, obs_index, cat_index_at(local_cat)});
     }
   }
 
-  std::sort(candidates.begin(), candidates.end(),
-            [](const Candidate& lhs, const Candidate& rhs) {
-              if (lhs.score != rhs.score) return lhs.score < rhs.score;
-              if (lhs.error != rhs.error) return lhs.error < rhs.error;
-              if (lhs.obs != rhs.obs) return lhs.obs < rhs.obs;
-              return lhs.cat < rhs.cat;
-            });
+  std::sort(candidates.begin(), candidates.end(), [](const Candidate& lhs, const Candidate& rhs) {
+    if (lhs.score != rhs.score) return lhs.score < rhs.score;
+    if (lhs.error != rhs.error) return lhs.error < rhs.error;
+    if (lhs.obs != rhs.obs) return lhs.obs < rhs.obs;
+    return lhs.cat < rhs.cat;
+  });
 
   VerifyResult result;
   std::unordered_set<int> used_cat;
@@ -371,8 +361,8 @@ VerifyResult verify_rotation(
 // Match Python's select_observation_triangles: enumerate combinations(N, 3)
 // in lexicographic order, then either keep all or pick max_obs_tris items
 // uniformly along the combination axis using rounded interpolation.
-std::vector<std::array<int, 3>> select_observation_triangles(
-    int observation_count, int max_observation_triangles) {
+std::vector<std::array<int, 3>> select_observation_triangles(int observation_count,
+                                                             int max_observation_triangles) {
   std::vector<std::array<int, 3>> all;
   if (observation_count < 3) {
     return all;
@@ -387,8 +377,7 @@ std::vector<std::array<int, 3>> select_observation_triangles(
       }
     }
   }
-  if (max_observation_triangles <= 0 ||
-      static_cast<int>(all.size()) <= max_observation_triangles) {
+  if (max_observation_triangles <= 0 || static_cast<int>(all.size()) <= max_observation_triangles) {
     return all;
   }
   if (max_observation_triangles == 1) {
@@ -431,31 +420,27 @@ bool is_close(double a, double b) {
 
 }  // namespace
 
-LostInSpaceResult identify_lost_in_space(
-    const std::vector<Eigen::Vector3d>& observations,
-    const std::vector<double>& observation_magnitudes,
-    const PairIndex& index,
-    const LostInSpaceConfig& config) {
+LostInSpaceResult identify_lost_in_space(const std::vector<Eigen::Vector3d>& observations,
+                                         const std::vector<double>& observation_magnitudes,
+                                         const PairIndex& index, const LostInSpaceConfig& config) {
   if (index.bin_size_rad <= 0.0) {
     throw std::runtime_error("identify_lost_in_space: bin_size_rad must be positive");
   }
-  if (!observation_magnitudes.empty() &&
-      observation_magnitudes.size() != observations.size()) {
+  if (!observation_magnitudes.empty() && observation_magnitudes.size() != observations.size()) {
     throw std::runtime_error(
         "identify_lost_in_space: observation_magnitudes size must match observations or be empty");
   }
 
   const double tolerance_rad = to_radians_arcsec(config.tolerance_arcsec);
-  const double verification_tolerance_rad =
-      to_radians_arcsec(config.verification_tolerance_arcsec);
+  const double verification_tolerance_rad = to_radians_arcsec(config.verification_tolerance_arcsec);
   const double magnitude_prior_rad = to_radians_arcsec(config.magnitude_prior_arcsec);
 
   LostInSpaceResult result;
   std::vector<int> permutation(observations.size());
   std::iota(permutation.begin(), permutation.end(), 0);
   std::mt19937_64 restart_rng(config.pyramid_restart_seed);
-  const double confidence_target = config.confidence_fraction *
-                                   static_cast<double>(observations.size());
+  const double confidence_target =
+      config.confidence_fraction * static_cast<double>(observations.size());
 
   std::vector<std::array<std::int32_t, 2>> scratch_ab;
   std::vector<std::array<std::int32_t, 2>> scratch_ac;
@@ -476,8 +461,8 @@ LostInSpaceResult identify_lost_in_space(
     } else {
       pool = permutation;
     }
-    const auto base_triangles = select_observation_triangles(
-        static_cast<int>(pool.size()), config.max_observation_triangles);
+    const auto base_triangles = select_observation_triangles(static_cast<int>(pool.size()),
+                                                             config.max_observation_triangles);
 
     std::vector<std::array<int, 3>> observation_triangles;
     observation_triangles.reserve(base_triangles.size());
@@ -498,21 +483,16 @@ LostInSpaceResult identify_lost_in_space(
     std::uint64_t global_order = 0;
     for (const auto& obs_indices : observation_triangles) {
       const auto gen_start = Clock::now();
-      auto candidates = candidate_mappings(
-          observations, index, config.neighbor_bins,
-          tolerance_rad, magnitude_prior_rad,
-          obs_indices[0], obs_indices[1], obs_indices[2],
-          scratch_ab, scratch_ac, scratch_bc);
+      auto candidates = candidate_mappings(observations, index, config.neighbor_bins, tolerance_rad,
+                                           magnitude_prior_rad, obs_indices[0], obs_indices[1],
+                                           obs_indices[2], scratch_ab, scratch_ac, scratch_bc);
       result.candidate_hypotheses += static_cast<std::int64_t>(candidates.size());
-      std::stable_sort(candidates.begin(), candidates.end(),
-                       [](const Candidate& lhs, const Candidate& rhs) {
-                         return lhs.score < rhs.score;
-                       });
+      std::stable_sort(
+          candidates.begin(), candidates.end(),
+          [](const Candidate& lhs, const Candidate& rhs) { return lhs.score < rhs.score; });
       if (config.max_candidates_per_observation_triangle > 0 &&
-          static_cast<int>(candidates.size()) >
-              config.max_candidates_per_observation_triangle) {
-        candidates.resize(static_cast<std::size_t>(
-            config.max_candidates_per_observation_triangle));
+          static_cast<int>(candidates.size()) > config.max_candidates_per_observation_triangle) {
+        candidates.resize(static_cast<std::size_t>(config.max_candidates_per_observation_triangle));
       }
       result.candidate_generation_seconds += seconds_since(gen_start);
       for (const auto& cand : candidates) {
@@ -527,10 +507,9 @@ LostInSpaceResult identify_lost_in_space(
 
     const auto pruning_start = Clock::now();
     result.triangle_matches += static_cast<std::int64_t>(hypotheses.size());
-    std::stable_sort(hypotheses.begin(), hypotheses.end(),
-                     [](const Hypothesis& lhs, const Hypothesis& rhs) {
-                       return lhs.score < rhs.score;
-                     });
+    std::stable_sort(
+        hypotheses.begin(), hypotheses.end(),
+        [](const Hypothesis& lhs, const Hypothesis& rhs) { return lhs.score < rhs.score; });
     if (config.max_verified_hypotheses > 0 &&
         static_cast<int>(hypotheses.size()) > config.max_verified_hypotheses) {
       hypotheses.resize(static_cast<std::size_t>(config.max_verified_hypotheses));
@@ -544,14 +523,12 @@ LostInSpaceResult identify_lost_in_space(
     for (const auto& hyp : hypotheses) {
       const auto verify_start = Clock::now();
       std::vector<std::pair<int, int>> pairs{
-          {hyp.obs[0], hyp.cat[0]},
-          {hyp.obs[1], hyp.cat[1]},
-          {hyp.obs[2], hyp.cat[2]}};
-      const Eigen::Matrix3d rotation = estimate_rotation_camera_inertial(
-          observations, index, pairs);
-      const VerifyResult v = verify_rotation(
-          rotation, observations, observation_magnitudes, index,
-          verification_tolerance_rad, magnitude_prior_rad, config.fov_radius_rad);
+          {hyp.obs[0], hyp.cat[0]}, {hyp.obs[1], hyp.cat[1]}, {hyp.obs[2], hyp.cat[2]}};
+      const Eigen::Matrix3d rotation =
+          estimate_rotation_camera_inertial(observations, index, pairs);
+      const VerifyResult v =
+          verify_rotation(rotation, observations, observation_magnitudes, index,
+                          verification_tolerance_rad, magnitude_prior_rad, config.fov_radius_rad);
       result.verification_seconds += seconds_since(verify_start);
       if (!v.assignments.empty()) {
         result.verified_hypotheses += 1;
@@ -564,8 +541,7 @@ LostInSpaceResult identify_lost_in_space(
       } else if (cur == best && cur > 0) {
         if (v.mean_score < attempt_mean_score) {
           replace = true;
-        } else if (is_close(v.mean_score, attempt_mean_score) &&
-                   v.rms_error < attempt_rms_error) {
+        } else if (is_close(v.mean_score, attempt_mean_score) && v.rms_error < attempt_rms_error) {
           replace = true;
         }
       }
@@ -605,4 +581,4 @@ LostInSpaceResult identify_lost_in_space(
   return result;
 }
 
-}  // namespace astro_localization::localization
+}  // namespace astro_navigation::localization

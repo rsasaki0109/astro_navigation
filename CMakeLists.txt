@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(
-  astro_localization
+  astro_navigation
   VERSION 0.1.0
-  DESCRIPTION "Reproducible lunar visual localization and TRN building blocks"
+  DESCRIPTION "Reproducible lunar visual navigation and TRN building blocks"
   LANGUAGES CXX)
 
 option(ASTRO_BUILD_APPS "Build command line applications" ON)
 option(ASTRO_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +38,7 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(localization)
+add_subdirectory(navigation)
 add_subdirectory(terrain)
 add_subdirectory(crater)
 add_subdirectory(visualization)
@@ -44,3 +47,6 @@ if(ASTRO_BUILD_APPS)
   add_subdirectory(apps)
 endif()
 
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()
