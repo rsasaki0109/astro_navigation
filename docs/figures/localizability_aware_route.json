@@ -1,0 +1,38 @@
+{
+  "output": "docs/figures/localizability_aware_route.png",
+  "planner_app": "/tmp/astro_navigation-build-renamed/apps/hazard_route_demo",
+  "grid_size": 170,
+  "start_pixel": [
+    640,
+    640
+  ],
+  "waypoint_pixel": [
+    900,
+    430
+  ],
+  "blocked_cost": 50.0,
+  "hazard_threshold": 0.6,
+  "localizability_weight": 7.0,
+  "confidence_model": "gradient + texture + feature_density + illumination_balance",
+  "feature_detector": "SIFT",
+  "feature_count": 482,
+  "low_confidence_penalty_mean": 0.5293294191360474,
+  "hazard_only_route": {
+    "mean_trn_confidence": 0.2006659060716629,
+    "min_trn_confidence": 0.0,
+    "p10_trn_confidence": 0.00021506405028048903,
+    "low_confidence_fraction": 0.7857142857142857,
+    "route_length_m": 26485.251434730584,
+    "detour_ratio": 1.1362057622331632,
+    "planner_mean_cost": 2.01565808928571
+  },
+  "localizability_aware_route": {
+    "mean_trn_confidence": 0.3897896111011505,
+    "min_trn_confidence": 0.0,
+    "p10_trn_confidence": 0.0045200674794614315,
+    "low_confidence_fraction": 0.45454545454545453,
+    "route_length_m": 31160.901909626777,
+    "detour_ratio": 1.0665984929313908,
+    "planner_mean_cost": 6.76959442522727
+  }
+}
