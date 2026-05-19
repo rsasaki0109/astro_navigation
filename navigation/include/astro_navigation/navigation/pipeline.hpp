@@ -1,9 +1,8 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <optional>
 #include <string>
-
-#include <Eigen/Core>
 
 #include "astro_navigation/core/types.hpp"
 #include "astro_navigation/navigation/state.hpp"

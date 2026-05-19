@@ -67,19 +67,16 @@ void writeNavStateJson(const std::filesystem::path& output_path, const NavState&
 
 void writeNavStateCsv(const std::filesystem::path& output_path, const NavState& state) {
   std::ofstream output = openOutput(output_path);
-  output
-      << "timestamp,status,status_reason,attitude_lock,position_lock,attitude_correspondences,"
-         "attitude_sigma_rad,position_sigma_m,frame,x,y,z,qx,qy,qz,qw,message\n";
+  output << "timestamp,status,status_reason,attitude_lock,position_lock,attitude_correspondences,"
+            "attitude_sigma_rad,position_sigma_m,frame,x,y,z,qx,qy,qz,qw,message\n";
   output << state.timestamp << ',' << toString(state.status) << ',' << toString(state.status_reason)
-         << ','
-         << (state.quality.attitude_lock ? 1 : 0) << ','
-         << (state.quality.position_lock ? 1 : 0) << ','
-         << state.quality.attitude_correspondences << ',' << state.quality.attitude_sigma_rad << ','
-         << state.quality.position_sigma_m << ',' << state.position_frame_id << ','
-         << state.position.x() << ',' << state.position.y() << ',' << state.position.z() << ','
-         << state.q_body_reference.x() << ',' << state.q_body_reference.y() << ','
-         << state.q_body_reference.z() << ',' << state.q_body_reference.w() << ','
-         << state.message << '\n';
+         << ',' << (state.quality.attitude_lock ? 1 : 0) << ','
+         << (state.quality.position_lock ? 1 : 0) << ',' << state.quality.attitude_correspondences
+         << ',' << state.quality.attitude_sigma_rad << ',' << state.quality.position_sigma_m << ','
+         << state.position_frame_id << ',' << state.position.x() << ',' << state.position.y() << ','
+         << state.position.z() << ',' << state.q_body_reference.x() << ','
+         << state.q_body_reference.y() << ',' << state.q_body_reference.z() << ','
+         << state.q_body_reference.w() << ',' << state.message << '\n';
 }
 
 }  // namespace astro::navigation

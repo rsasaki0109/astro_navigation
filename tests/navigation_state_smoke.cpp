@@ -131,11 +131,9 @@ int main(const int argc, char** argv) {
   const std::vector<Eigen::Vector2d> pixels = {
       {512.0, 512.0}, {620.0, 500.0}, {440.0, 610.0}, {570.0, 680.0}};
   for (std::size_t index = 0; index < pixels.size(); ++index) {
-    const Eigen::Vector3d bearing =
-        Eigen::Vector3d((pixels[index].x() - 512.0) / 1000.0,
-                        (pixels[index].y() - 512.0) / 1000.0,
-                        1.0)
-            .normalized();
+    const Eigen::Vector3d bearing = Eigen::Vector3d((pixels[index].x() - 512.0) / 1000.0,
+                                                    (pixels[index].y() - 512.0) / 1000.0, 1.0)
+                                        .normalized();
     catalog_output << "star_" << index << ',' << bearing.x() << ',' << bearing.y() << ','
                    << bearing.z() << '\n';
     observations_output << "star_" << index << ',' << pixels[index].x() << ',' << pixels[index].y()
@@ -163,8 +161,7 @@ int main(const int argc, char** argv) {
   if (!pipeline_result.position_lock) {
     return fail("pipeline did not expose TRN position lock measurement");
   }
-  if (!near(pipeline_result.position_lock->quality_terms.map_resolution_sigma_m,
-            143.9561409500211,
+  if (!near(pipeline_result.position_lock->quality_terms.map_resolution_sigma_m, 143.9561409500211,
             1.0e-9)) {
     return fail("pipeline did not expose TRN quality terms");
   }

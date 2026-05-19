@@ -19,4 +19,3 @@ std::vector<TerrainLandmark> extractOrbTerrainLandmarks(const cv::Mat& gray_imag
 }
 
 }  // namespace astro::terrain
-

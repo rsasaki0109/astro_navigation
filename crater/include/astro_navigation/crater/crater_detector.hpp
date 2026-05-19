@@ -1,8 +1,7 @@
 #pragma once
 
-#include <vector>
-
 #include <opencv2/core.hpp>
+#include <vector>
 
 namespace astro::crater {
 
@@ -26,4 +25,3 @@ std::vector<CraterCandidate> detectCircularCraters(const cv::Mat& gray_image,
                                                    const CraterDetectionOptions& options = {});
 
 }  // namespace astro::crater
-

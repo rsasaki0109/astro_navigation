@@ -1,11 +1,10 @@
 #pragma once
 
+#include <opencv2/core.hpp>
+#include <opencv2/features2d.hpp>
 #include <optional>
 #include <string>
 #include <vector>
-
-#include <opencv2/core.hpp>
-#include <opencv2/features2d.hpp>
 
 #include "astro_navigation/core/types.hpp"
 
@@ -64,4 +63,3 @@ class VisualOdometry {
 };
 
 }  // namespace astro::localization
-

@@ -1,16 +1,15 @@
+#include <Eigen/Core>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <cmath>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <Eigen/Core>
 
 #include "astro_navigation/navigation/hazard_guidance.hpp"
 
@@ -38,13 +37,12 @@ struct Args {
 };
 
 void printUsage() {
-  std::cerr
-      << "Usage: hazard_route_demo --cost-map cost.csv "
-         "(--start-cell-x <x> --start-cell-y <y> --goal-cell-x <x> --goal-cell-y <y> | "
-         "--start-x-m <x> --start-y-m <y> --goal-x-m <x> --goal-y-m <y>) "
-         "[--resolution-m <m>] [--origin-x-m <m>] [--origin-y-m <m>] "
-         "[--blocked-cost <cost>] [--heuristic-weight <w>] [--snap-radius-cells <n>] "
-         "[--no-diagonal] [--output-csv route.csv] [--output-json route.json]\n";
+  std::cerr << "Usage: hazard_route_demo --cost-map cost.csv "
+               "(--start-cell-x <x> --start-cell-y <y> --goal-cell-x <x> --goal-cell-y <y> | "
+               "--start-x-m <x> --start-y-m <y> --goal-x-m <x> --goal-y-m <y>) "
+               "[--resolution-m <m>] [--origin-x-m <m>] [--origin-y-m <m>] "
+               "[--blocked-cost <cost>] [--heuristic-weight <w>] [--snap-radius-cells <n>] "
+               "[--no-diagonal] [--output-csv route.csv] [--output-json route.json]\n";
 }
 
 double parseDouble(const char* value, const std::string& name) {
@@ -127,14 +125,13 @@ Args parseArgs(const int argc, char** argv) {
     throw std::invalid_argument("--resolution-m must be positive");
   }
 
-  const int cell_count =
-      (args.start_cell_x ? 1 : 0) + (args.start_cell_y ? 1 : 0) + (args.goal_cell_x ? 1 : 0) +
-      (args.goal_cell_y ? 1 : 0);
-  const int meter_count =
-      (args.start_x_m ? 1 : 0) + (args.start_y_m ? 1 : 0) + (args.goal_x_m ? 1 : 0) +
-      (args.goal_y_m ? 1 : 0);
+  const int cell_count = (args.start_cell_x ? 1 : 0) + (args.start_cell_y ? 1 : 0) +
+                         (args.goal_cell_x ? 1 : 0) + (args.goal_cell_y ? 1 : 0);
+  const int meter_count = (args.start_x_m ? 1 : 0) + (args.start_y_m ? 1 : 0) +
+                          (args.goal_x_m ? 1 : 0) + (args.goal_y_m ? 1 : 0);
   if ((cell_count != 0 && cell_count != 4) || (meter_count != 0 && meter_count != 4)) {
-    throw std::invalid_argument("start/goal coordinates must be provided as a complete cell or meter set");
+    throw std::invalid_argument(
+        "start/goal coordinates must be provided as a complete cell or meter set");
   }
   if ((cell_count == 0 && meter_count == 0) || (cell_count != 0 && meter_count != 0)) {
     throw std::invalid_argument("provide exactly one start/goal coordinate mode");
@@ -206,10 +203,8 @@ std::string jsonNumber(const double value) {
   return output.str();
 }
 
-void writeRouteCsv(const std::filesystem::path& path,
-                   const astro::navigation::HazardCostMap& map,
-                   const astro::navigation::HazardRoute& route,
-                   const double blocked_cost) {
+void writeRouteCsv(const std::filesystem::path& path, const astro::navigation::HazardCostMap& map,
+                   const astro::navigation::HazardRoute& route, const double blocked_cost) {
   std::ofstream output(path);
   if (!output) {
     throw std::runtime_error("failed to write route CSV: " + path.string());
@@ -233,8 +228,7 @@ void writeRouteCsv(const std::filesystem::path& path,
   }
 }
 
-void writeRouteJson(const std::filesystem::path& path,
-                    const astro::navigation::HazardCostMap& map,
+void writeRouteJson(const std::filesystem::path& path, const astro::navigation::HazardCostMap& map,
                     const astro::navigation::HazardRoute& route) {
   std::ofstream output(path);
   if (!output) {
@@ -256,15 +250,16 @@ void writeRouteJson(const std::filesystem::path& path,
   output << "    \"detour_ratio\": " << jsonNumber(route.metrics.detour_ratio) << ",\n";
   output << "    \"mean_cost\": " << jsonNumber(route.metrics.mean_cost) << ",\n";
   output << "    \"max_cost\": " << jsonNumber(route.metrics.max_cost) << ",\n";
-  output << "    \"min_clearance_cells\": " << jsonNumber(route.metrics.min_clearance_cells) << ",\n";
+  output << "    \"min_clearance_cells\": " << jsonNumber(route.metrics.min_clearance_cells)
+         << ",\n";
   output << "    \"min_clearance_m\": " << jsonNumber(route.metrics.min_clearance_m) << "\n";
   output << "  },\n";
   output << "  \"waypoints\": [\n";
   for (std::size_t index = 0; index < route.cells.size(); ++index) {
     const auto cell = route.cells.at(index);
     const auto xy_m = route.waypoints_xy_m.at(index);
-    output << "    {\"cell\": [" << cell.x << ", " << cell.y << "], \"xy_m\": [" << xy_m.x()
-           << ", " << xy_m.y() << "], \"cost\": " << map.costAt(cell) << "}";
+    output << "    {\"cell\": [" << cell.x << ", " << cell.y << "], \"xy_m\": [" << xy_m.x() << ", "
+           << xy_m.y() << "], \"cost\": " << map.costAt(cell) << "}";
     output << (index + 1U == route.cells.size() ? "\n" : ",\n");
   }
   output << "  ]\n";
@@ -287,14 +282,12 @@ int main(const int argc, char** argv) {
 
     astro::navigation::HazardRoute route;
     if (args.start_cell_x && args.start_cell_y && args.goal_cell_x && args.goal_cell_y) {
-      route = astro::navigation::planHazardAwareRoute(
-          map, {*args.start_cell_x, *args.start_cell_y}, {*args.goal_cell_x, *args.goal_cell_y}, options);
+      route =
+          astro::navigation::planHazardAwareRoute(map, {*args.start_cell_x, *args.start_cell_y},
+                                                  {*args.goal_cell_x, *args.goal_cell_y}, options);
     } else {
       route = astro::navigation::planHazardAwareRouteMeters(
-          map,
-          {*args.start_x_m, *args.start_y_m},
-          {*args.goal_x_m, *args.goal_y_m},
-          options);
+          map, {*args.start_x_m, *args.start_y_m}, {*args.goal_x_m, *args.goal_y_m}, options);
     }
 
     std::cout
@@ -302,13 +295,13 @@ int main(const int argc, char** argv) {
            "mean_cost,max_cost,min_clearance_cells,min_clearance_m,start_cell_x,start_cell_y,"
            "goal_cell_x,goal_cell_y\n";
     if (route.success()) {
-      std::cout << "1," << route.message << ',' << route.cells.size() << ',' << route.total_cost << ','
-                << route.metrics.route_length_m << ',' << route.metrics.straight_line_length_m << ','
-                << route.metrics.detour_ratio << ',' << route.metrics.mean_cost << ','
-                << route.metrics.max_cost << ',' << route.metrics.min_clearance_cells << ','
-                << route.metrics.min_clearance_m << ',' << route.cells.front().x << ','
-                << route.cells.front().y << ',' << route.cells.back().x << ',' << route.cells.back().y
-                << '\n';
+      std::cout << "1," << route.message << ',' << route.cells.size() << ',' << route.total_cost
+                << ',' << route.metrics.route_length_m << ','
+                << route.metrics.straight_line_length_m << ',' << route.metrics.detour_ratio << ','
+                << route.metrics.mean_cost << ',' << route.metrics.max_cost << ','
+                << route.metrics.min_clearance_cells << ',' << route.metrics.min_clearance_m << ','
+                << route.cells.front().x << ',' << route.cells.front().y << ','
+                << route.cells.back().x << ',' << route.cells.back().y << '\n';
     } else {
       std::cout << "0," << route.message << ",0," << route.total_cost << ",0,0,0,0,0,0,0,0,0,0,0\n";
     }

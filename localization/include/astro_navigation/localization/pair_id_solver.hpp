@@ -1,11 +1,10 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
 #include <vector>
-
-#include <Eigen/Core>
 
 #include "astro_navigation/localization/pair_index_loader.hpp"
 
@@ -50,10 +49,8 @@ struct LostInSpaceResult {
 // observation_magnitudes is either empty (legacy: verify_rotation scores by
 // catalog magnitude alone) or sized to observations.size() (uses
 // |obs_mag - cat_mag| as the magnitude term, sharper discrimination).
-LostInSpaceResult identify_lost_in_space(
-    const std::vector<Eigen::Vector3d>& observations,
-    const std::vector<double>& observation_magnitudes,
-    const PairIndex& index,
-    const LostInSpaceConfig& config);
+LostInSpaceResult identify_lost_in_space(const std::vector<Eigen::Vector3d>& observations,
+                                         const std::vector<double>& observation_magnitudes,
+                                         const PairIndex& index, const LostInSpaceConfig& config);
 
 }  // namespace astro_navigation::localization

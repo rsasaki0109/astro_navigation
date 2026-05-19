@@ -19,4 +19,3 @@ struct PoseStamped {
 };
 
 }  // namespace astro::core
-

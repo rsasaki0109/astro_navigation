@@ -1,12 +1,11 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <array>
 #include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
-
-#include <Eigen/Core>
 
 namespace astro_navigation::localization {
 

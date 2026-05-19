@@ -2,17 +2,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <opencv2/calib3d.hpp>
 #include <optional>
 #include <stdexcept>
-
-#include <opencv2/calib3d.hpp>
 
 namespace astro::localization {
 namespace {
 
 cv::Matx33d cameraMatrix(const core::CameraIntrinsics& intrinsics) {
-  return cv::Matx33d(intrinsics.fx, 0.0, intrinsics.cx, 0.0, intrinsics.fy, intrinsics.cy, 0.0,
-                     0.0, 1.0);
+  return cv::Matx33d(intrinsics.fx, 0.0, intrinsics.cx, 0.0, intrinsics.fy, intrinsics.cy, 0.0, 0.0,
+                     1.0);
 }
 
 Eigen::Isometry3d toPreviousCurrent(const cv::Mat& rvec, const cv::Mat& tvec) {
@@ -29,8 +28,9 @@ Eigen::Isometry3d toPreviousCurrent(const cv::Mat& rvec, const cv::Mat& tvec) {
   return T_current_previous.inverse();
 }
 
-std::vector<cv::DMatch> ratioMatches(const cv::Mat& query_descriptors, const cv::Mat& train_descriptors,
-                                     const double ratio_test, const int norm) {
+std::vector<cv::DMatch> ratioMatches(const cv::Mat& query_descriptors,
+                                     const cv::Mat& train_descriptors, const double ratio_test,
+                                     const int norm) {
   if (query_descriptors.empty() || train_descriptors.empty()) {
     return {};
   }
@@ -67,7 +67,8 @@ StereoVisualOdometry::StereoVisualOdometry(StereoCameraModel camera,
   }
 }
 
-StereoFrameEstimate StereoVisualOdometry::process(const cv::Mat& left_gray, const cv::Mat& right_gray,
+StereoFrameEstimate StereoVisualOdometry::process(const cv::Mat& left_gray,
+                                                  const cv::Mat& right_gray,
                                                   const double timestamp) {
   StereoFrame current = buildStereoFrame(left_gray, right_gray);
   StereoMotionEstimate motion;
@@ -112,8 +113,8 @@ StereoVisualOdometry::Features StereoVisualOdometry::extract(const cv::Mat& gray
   return features;
 }
 
-StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(const cv::Mat& left_gray,
-                                                                         const cv::Mat& right_gray) const {
+StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(
+    const cv::Mat& left_gray, const cv::Mat& right_gray) const {
   StereoFrame frame;
   frame.left = extract(left_gray);
   const Features right = extract(right_gray);
@@ -123,7 +124,8 @@ StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(const c
   std::vector<cv::DMatch> stereo_matches =
       ratioMatches(frame.left.descriptors, right.descriptors, options_.ratio_test, norm);
   std::erase_if(stereo_matches, [&](const cv::DMatch& match) {
-    const cv::Point2f& left_point = frame.left.keypoints[static_cast<std::size_t>(match.queryIdx)].pt;
+    const cv::Point2f& left_point =
+        frame.left.keypoints[static_cast<std::size_t>(match.queryIdx)].pt;
     const cv::Point2f& right_point = right.keypoints[static_cast<std::size_t>(match.trainIdx)].pt;
     const float disparity = left_point.x - right_point.x;
     return std::abs(left_point.y - right_point.y) > options_.max_stereo_y_diff_px ||
@@ -155,7 +157,8 @@ StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(const c
   left_points.reserve(stereo_matches.size());
   right_points.reserve(stereo_matches.size());
   for (const auto& match : stereo_matches) {
-    const cv::Point2f left_point = frame.left.keypoints[static_cast<std::size_t>(match.queryIdx)].pt;
+    const cv::Point2f left_point =
+        frame.left.keypoints[static_cast<std::size_t>(match.queryIdx)].pt;
     const cv::Point2f right_point = right.keypoints[static_cast<std::size_t>(match.trainIdx)].pt;
     left_points.emplace_back(left_point.x, left_point.y);
     right_points.emplace_back(right_point.x, right_point.y);
@@ -196,8 +199,8 @@ StereoVisualOdometry::StereoFrame StereoVisualOdometry::buildStereoFrame(const c
                                             frame.left.descriptors.cols,
                                             frame.left.descriptors.type());
     for (std::size_t row = 0; row < depth_indices.size(); ++row) {
-      frame.left.descriptors.row(depth_indices[row]).copyTo(
-          frame.depth_features.descriptors.row(static_cast<int>(row)));
+      frame.left.descriptors.row(depth_indices[row])
+          .copyTo(frame.depth_features.descriptors.row(static_cast<int>(row)));
     }
   }
   return frame;
@@ -210,9 +213,8 @@ StereoMotionEstimate StereoVisualOdometry::estimateMotion(const StereoFrame& pre
   motion.valid_3d_point_count = current.valid_3d_point_count;
 
   const int norm = options_.feature_type == FeatureType::kOrb ? cv::NORM_HAMMING : cv::NORM_L2;
-  const std::vector<cv::DMatch> temporal_matches =
-      ratioMatches(previous.depth_features.descriptors, current.left.descriptors,
-                   options_.ratio_test, norm);
+  const std::vector<cv::DMatch> temporal_matches = ratioMatches(
+      previous.depth_features.descriptors, current.left.descriptors, options_.ratio_test, norm);
   motion.temporal_match_count = static_cast<int>(temporal_matches.size());
 
   std::vector<cv::Point3f> object_points;

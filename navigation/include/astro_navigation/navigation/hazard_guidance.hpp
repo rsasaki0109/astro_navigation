@@ -1,10 +1,9 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <cstddef>
 #include <string>
 #include <vector>
-
-#include <Eigen/Core>
 
 namespace astro::navigation {
 
@@ -29,7 +28,8 @@ struct HazardCostMap {
   [[nodiscard]] bool traversable(GridCell cell, double blocked_cost) const;
   [[nodiscard]] GridCell worldToCell(const Eigen::Vector2d& xy_m) const;
   [[nodiscard]] Eigen::Vector2d cellCenterToWorld(GridCell cell) const;
-  [[nodiscard]] GridCell nearestTraversable(GridCell cell, double blocked_cost, int radius_cells) const;
+  [[nodiscard]] GridCell nearestTraversable(GridCell cell, double blocked_cost,
+                                            int radius_cells) const;
 };
 
 struct HazardPlannerOptions {
@@ -59,8 +59,7 @@ struct HazardRoute {
   [[nodiscard]] bool success() const { return !cells.empty(); }
 };
 
-[[nodiscard]] HazardRoute planHazardAwareRoute(const HazardCostMap& map,
-                                               GridCell start,
+[[nodiscard]] HazardRoute planHazardAwareRoute(const HazardCostMap& map, GridCell start,
                                                GridCell goal,
                                                const HazardPlannerOptions& options = {});
 
@@ -73,8 +72,7 @@ struct HazardRoute {
                                                            const std::vector<GridCell>& route,
                                                            double blocked_cost);
 
-[[nodiscard]] double clearanceToNearestBlockedCell(const HazardCostMap& map,
-                                                   GridCell cell,
+[[nodiscard]] double clearanceToNearestBlockedCell(const HazardCostMap& map, GridCell cell,
                                                    double blocked_cost);
 
 [[nodiscard]] std::vector<GridCell> resampleRoute(const std::vector<GridCell>& route,

@@ -59,8 +59,7 @@ struct NeighborStep {
   return waypoints;
 }
 
-[[nodiscard]] bool blockedCell(const HazardCostMap& map,
-                               const GridCell cell,
+[[nodiscard]] bool blockedCell(const HazardCostMap& map, const GridCell cell,
                                const double blocked_cost) {
   if (!map.inBounds(cell)) {
     return false;
@@ -91,9 +90,7 @@ std::size_t HazardCostMap::index(const GridCell cell) const {
          static_cast<std::size_t>(cell.x);
 }
 
-double HazardCostMap::costAt(const GridCell cell) const {
-  return costs.at(index(cell));
-}
+double HazardCostMap::costAt(const GridCell cell) const { return costs.at(index(cell)); }
 
 bool HazardCostMap::traversable(const GridCell cell, const double blocked_cost) const {
   if (!inBounds(cell)) {
@@ -118,13 +115,11 @@ Eigen::Vector2d HazardCostMap::cellCenterToWorld(const GridCell cell) const {
   if (!inBounds(cell)) {
     throw std::out_of_range("hazard grid cell is out of bounds");
   }
-  return origin_xy_m +
-         resolution_m * Eigen::Vector2d(static_cast<double>(cell.x) + 0.5,
-                                        static_cast<double>(cell.y) + 0.5);
+  return origin_xy_m + resolution_m * Eigen::Vector2d(static_cast<double>(cell.x) + 0.5,
+                                                      static_cast<double>(cell.y) + 0.5);
 }
 
-GridCell HazardCostMap::nearestTraversable(const GridCell cell,
-                                           const double blocked_cost,
+GridCell HazardCostMap::nearestTraversable(const GridCell cell, const double blocked_cost,
                                            const int radius_cells) const {
   if (!valid()) {
     throw std::invalid_argument("hazard cost map dimensions do not match cost storage");
@@ -140,8 +135,8 @@ GridCell HazardCostMap::nearestTraversable(const GridCell cell,
       if (!traversable(candidate, blocked_cost)) {
         continue;
       }
-      const double score = costAt(candidate) + 0.01 * std::hypot(static_cast<double>(dx),
-                                                                 static_cast<double>(dy));
+      const double score =
+          costAt(candidate) + 0.01 * std::hypot(static_cast<double>(dx), static_cast<double>(dy));
       if (score < best_score) {
         best = candidate;
         best_score = score;
@@ -155,9 +150,7 @@ GridCell HazardCostMap::nearestTraversable(const GridCell cell,
   return best;
 }
 
-HazardRoute planHazardAwareRoute(const HazardCostMap& map,
-                                 GridCell start,
-                                 GridCell goal,
+HazardRoute planHazardAwareRoute(const HazardCostMap& map, GridCell start, GridCell goal,
                                  const HazardPlannerOptions& options) {
   if (!map.valid()) {
     throw std::invalid_argument("hazard cost map dimensions do not match cost storage");
@@ -173,7 +166,8 @@ HazardRoute planHazardAwareRoute(const HazardCostMap& map,
   goal = map.nearestTraversable(goal, options.blocked_cost, options.snap_radius_cells);
 
   const auto steps = neighborSteps(options.allow_diagonal);
-  const auto cell_count = static_cast<std::size_t>(map.width) * static_cast<std::size_t>(map.height);
+  const auto cell_count =
+      static_cast<std::size_t>(map.width) * static_cast<std::size_t>(map.height);
   std::vector<double> best_cost(cell_count, std::numeric_limits<double>::infinity());
   std::vector<int> parent(cell_count, -1);
   std::priority_queue<QueueItem, std::vector<QueueItem>, QueueItemGreater> frontier;
@@ -189,9 +183,9 @@ HazardRoute planHazardAwareRoute(const HazardCostMap& map,
     const QueueItem current = frontier.top();
     frontier.pop();
     const auto current_index = map.index(current.cell);
-    if (current.priority >
-        best_cost[current_index] + options.heuristic_weight * euclideanCells(current.cell, goal) *
-                                       map.resolution_m) {
+    if (current.priority > best_cost[current_index] + options.heuristic_weight *
+                                                          euclideanCells(current.cell, goal) *
+                                                          map.resolution_m) {
       continue;
     }
     if (current.cell == goal) {
@@ -246,15 +240,14 @@ HazardRoute planHazardAwareRoute(const HazardCostMap& map,
   return route;
 }
 
-HazardRoute planHazardAwareRouteMeters(const HazardCostMap& map,
-                                       const Eigen::Vector2d& start_xy_m,
+HazardRoute planHazardAwareRouteMeters(const HazardCostMap& map, const Eigen::Vector2d& start_xy_m,
                                        const Eigen::Vector2d& goal_xy_m,
                                        const HazardPlannerOptions& options) {
-  return planHazardAwareRoute(map, map.worldToCell(start_xy_m), map.worldToCell(goal_xy_m), options);
+  return planHazardAwareRoute(map, map.worldToCell(start_xy_m), map.worldToCell(goal_xy_m),
+                              options);
 }
 
-double clearanceToNearestBlockedCell(const HazardCostMap& map,
-                                     const GridCell cell,
+double clearanceToNearestBlockedCell(const HazardCostMap& map, const GridCell cell,
                                      const double blocked_cost) {
   if (!map.valid()) {
     throw std::invalid_argument("hazard cost map dimensions do not match cost storage");
@@ -299,8 +292,8 @@ HazardRouteMetrics computeHazardRouteMetrics(const HazardCostMap& map,
     const double cost = map.costAt(cell);
     total_cell_cost += cost;
     metrics.max_cost = std::max(metrics.max_cost, cost);
-    metrics.min_clearance_cells =
-        std::min(metrics.min_clearance_cells, clearanceToNearestBlockedCell(map, cell, blocked_cost));
+    metrics.min_clearance_cells = std::min(metrics.min_clearance_cells,
+                                           clearanceToNearestBlockedCell(map, cell, blocked_cost));
 
     if (index > 0U) {
       metrics.route_length_m += euclideanCells(route.at(index - 1U), cell) * map.resolution_m;
@@ -309,10 +302,9 @@ HazardRouteMetrics computeHazardRouteMetrics(const HazardCostMap& map,
 
   metrics.mean_cost = total_cell_cost / static_cast<double>(route.size());
   metrics.straight_line_length_m = euclideanCells(route.front(), route.back()) * map.resolution_m;
-  metrics.detour_ratio =
-      metrics.straight_line_length_m > 0.0
-          ? metrics.route_length_m / metrics.straight_line_length_m
-          : 1.0;
+  metrics.detour_ratio = metrics.straight_line_length_m > 0.0
+                             ? metrics.route_length_m / metrics.straight_line_length_m
+                             : 1.0;
   metrics.min_clearance_m = metrics.min_clearance_cells * map.resolution_m;
   return metrics;
 }

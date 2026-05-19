@@ -1,9 +1,8 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <filesystem>
 #include <string>
-
-#include <Eigen/Core>
 
 namespace astro::navigation {
 

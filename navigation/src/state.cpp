@@ -89,8 +89,7 @@ NavStatusReason classifyReason(const NavState& state) {
   return NavStatusReason::kNone;
 }
 
-NavState fromPoseEstimate(const core::PoseStamped& pose,
-                          const std::string& position_frame_id,
+NavState fromPoseEstimate(const core::PoseStamped& pose, const std::string& position_frame_id,
                           const double position_sigma_m) {
   NavState state;
   state.timestamp = pose.timestamp;
@@ -107,8 +106,7 @@ NavState fromPoseEstimate(const core::PoseStamped& pose,
 }
 
 NavState fromStarTrackerEstimate(const localization::StarTrackerEstimate& estimate,
-                                 const double timestamp,
-                                 const double attitude_sigma_scale) {
+                                 const double timestamp, const double attitude_sigma_scale) {
   NavState state;
   state.timestamp = timestamp;
   state.quality.attitude_lock = estimate.success;
@@ -125,10 +123,8 @@ NavState fromStarTrackerEstimate(const localization::StarTrackerEstimate& estima
   return state;
 }
 
-void applyPositionLock(NavState& state,
-                       const Eigen::Vector3d& position,
-                       const std::string& position_frame_id,
-                       const double position_sigma_m) {
+void applyPositionLock(NavState& state, const Eigen::Vector3d& position,
+                       const std::string& position_frame_id, const double position_sigma_m) {
   state.position = position;
   state.position_frame_id = position_frame_id;
   state.quality.position_lock = true;

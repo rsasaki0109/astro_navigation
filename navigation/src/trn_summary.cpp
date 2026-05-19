@@ -1,7 +1,7 @@
 #include "astro_navigation/navigation/trn_summary.hpp"
 
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <optional>
 #include <regex>
@@ -97,9 +97,8 @@ TrnQualityTerms estimateQualityTerms(const std::string& text, const int inlier_c
 }
 
 double estimatePositionSigmaM(const TrnQualityTerms& terms) {
-  return std::max({terms.map_resolution_sigma_m,
-                   terms.reprojection_sigma_m,
-                   terms.inlier_geometry_sigma_m});
+  return std::max(
+      {terms.map_resolution_sigma_m, terms.reprojection_sigma_m, terms.inlier_geometry_sigma_m});
 }
 
 }  // namespace

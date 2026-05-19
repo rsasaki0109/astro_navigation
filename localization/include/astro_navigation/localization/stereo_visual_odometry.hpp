@@ -1,11 +1,10 @@
 #pragma once
 
+#include <opencv2/core.hpp>
+#include <opencv2/features2d.hpp>
 #include <optional>
 #include <string>
 #include <vector>
-
-#include <opencv2/core.hpp>
-#include <opencv2/features2d.hpp>
 
 #include "astro_navigation/core/types.hpp"
 #include "astro_navigation/localization/visual_odometry.hpp"
@@ -55,7 +54,8 @@ class StereoVisualOdometry {
  public:
   StereoVisualOdometry(StereoCameraModel camera, StereoVisualOdometryOptions options);
 
-  StereoFrameEstimate process(const cv::Mat& left_gray, const cv::Mat& right_gray, double timestamp);
+  StereoFrameEstimate process(const cv::Mat& left_gray, const cv::Mat& right_gray,
+                              double timestamp);
 
  private:
   struct Features {
@@ -74,7 +74,8 @@ class StereoVisualOdometry {
 
   Features extract(const cv::Mat& gray_image) const;
   StereoFrame buildStereoFrame(const cv::Mat& left_gray, const cv::Mat& right_gray) const;
-  StereoMotionEstimate estimateMotion(const StereoFrame& previous, const StereoFrame& current) const;
+  StereoMotionEstimate estimateMotion(const StereoFrame& previous,
+                                      const StereoFrame& current) const;
 
   StereoCameraModel camera_;
   StereoVisualOdometryOptions options_;

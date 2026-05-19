@@ -1,9 +1,8 @@
 #pragma once
 
-#include <string>
-
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <string>
 
 #include "astro_navigation/core/types.hpp"
 #include "astro_navigation/localization/star_tracker.hpp"
@@ -55,13 +54,10 @@ struct NavState {
                                         double position_sigma_m);
 
 [[nodiscard]] NavState fromStarTrackerEstimate(const localization::StarTrackerEstimate& estimate,
-                                               double timestamp,
-                                               double attitude_sigma_scale = 1.0);
+                                               double timestamp, double attitude_sigma_scale = 1.0);
 
-void applyPositionLock(NavState& state,
-                       const Eigen::Vector3d& position,
-                       const std::string& position_frame_id,
-                       double position_sigma_m);
+void applyPositionLock(NavState& state, const Eigen::Vector3d& position,
+                       const std::string& position_frame_id, double position_sigma_m);
 
 void refreshStatus(NavState& state);
 

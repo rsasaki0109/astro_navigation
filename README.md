@@ -66,7 +66,10 @@ status,status_reason,attitude_lock,position_lock,correspondences,attitude_sigma_
 OK,NONE,1,1,...
 ```
 
-## Demo
+## Featured Demos
+
+The first-screen demos show the current navigation direction: state estimation, terrain-relative
+position lock, and hazard-aware route planning.
 
 ### Lost Robot Challenge — one star frame + one lunar frame
 
@@ -131,6 +134,9 @@ ffmpeg -y -i docs/figures/hazard_aware_navigation_demo.gif \
   -vf "fps=12,scale=trunc(iw/2)*2:trunc(ih/2)*2" \
   docs/figures/hazard_aware_navigation_demo.mp4
 ```
+
+<details>
+<summary>More demos and benchmark visuals</summary>
 
 ### TRN trajectory — frame-by-frame position recovery
 
@@ -329,6 +335,8 @@ python3 scripts/plot_trajectory_comparison.py \
   --trajectory "SIFT monocular (Sim(3))" outputs/trajectory_sift.tum sim3 \
   --output outputs/trajectory_sift_demo.png
 ```
+
+</details>
 
 ## Headline Results
 

@@ -1,17 +1,17 @@
+#include "astro_navigation/localization/stereo_visual_odometry.hpp"
+
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <opencv2/imgproc.hpp>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <opencv2/imgproc.hpp>
-
 #include "astro_navigation/core/image_sequence.hpp"
-#include "astro_navigation/localization/stereo_visual_odometry.hpp"
 #include "astro_navigation/visualization/trajectory_io.hpp"
 
 namespace {
@@ -184,16 +184,18 @@ int main(const int argc, char** argv) {
     std::vector<astro::core::PoseStamped> trajectory;
     trajectory.reserve(pairs.size());
 
-    std::cout << "frames,stereo_matches,valid_3d_points,temporal_matches,pnp_points,pnp_inliers,status\n";
+    std::cout
+        << "frames,stereo_matches,valid_3d_points,temporal_matches,pnp_points,pnp_inliers,status\n";
     for (std::size_t index = 0; index < pairs.size(); ++index) {
       const cv::Mat left = preprocessImage(astro::core::loadGrayImage(pairs[index].left), args);
       const cv::Mat right = preprocessImage(astro::core::loadGrayImage(pairs[index].right), args);
       const auto estimate = odometry.process(left, right, static_cast<double>(index));
       trajectory.push_back(estimate.pose);
       std::cout << estimate.frame_index << ',' << estimate.motion.stereo_match_count << ','
-                << estimate.motion.valid_3d_point_count << ',' << estimate.motion.temporal_match_count
-                << ',' << estimate.motion.pnp_point_count << ',' << estimate.motion.pnp_inlier_count
-                << ',' << estimate.motion.message << '\n';
+                << estimate.motion.valid_3d_point_count << ','
+                << estimate.motion.temporal_match_count << ',' << estimate.motion.pnp_point_count
+                << ',' << estimate.motion.pnp_inlier_count << ',' << estimate.motion.message
+                << '\n';
     }
 
     if (args.trajectory.extension() == ".csv") {

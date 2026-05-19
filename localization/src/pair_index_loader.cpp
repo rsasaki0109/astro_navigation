@@ -78,7 +78,8 @@ PairIndex load_pair_index_bin(const std::filesystem::path& path) {
   read_bytes(stream, index.magnitudes.data(), static_cast<std::size_t>(n_stars) * sizeof(double));
 
   index.bin_keys.resize(static_cast<std::size_t>(n_bins));
-  read_bytes(stream, index.bin_keys.data(), static_cast<std::size_t>(n_bins) * sizeof(std::int32_t));
+  read_bytes(stream, index.bin_keys.data(),
+             static_cast<std::size_t>(n_bins) * sizeof(std::int32_t));
 
   index.bin_offsets.resize(static_cast<std::size_t>(n_bins) + 1);
   read_bytes(stream, index.bin_offsets.data(),

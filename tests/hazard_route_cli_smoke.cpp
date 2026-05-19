@@ -88,7 +88,8 @@ int main(const int argc, char** argv) {
       stdout_text.find(",1,3,10,3") == std::string::npos) {
     return fail("stdout summary did not contain expected route fields");
   }
-  if (csv_text.find("index,cell_x,cell_y,x_m,y_m,cost,cumulative_distance_m,clearance_cells,clearance_m") ==
+  if (csv_text.find(
+          "index,cell_x,cell_y,x_m,y_m,cost,cumulative_distance_m,clearance_cells,clearance_m") ==
           std::string::npos ||
       csv_text.find(",5,4,111,209,1.2") == std::string::npos) {
     return fail("route CSV did not include the safe wall gap waypoint");

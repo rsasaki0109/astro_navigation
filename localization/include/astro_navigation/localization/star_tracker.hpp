@@ -1,10 +1,9 @@
 #pragma once
 
-#include <string>
-#include <vector>
-
 #include <Eigen/Geometry>
 #include <opencv2/core.hpp>
+#include <string>
+#include <vector>
 
 #include "astro_navigation/core/types.hpp"
 
@@ -31,10 +30,8 @@ struct StarTrackerEstimate {
 std::vector<StarObservation> loadStarObservationsCsv(const std::string& path);
 std::vector<StarCatalogEntry> loadStarCatalogCsv(const std::string& path);
 
-StarTrackerEstimate estimateStarTrackerAttitude(
-    const std::vector<StarObservation>& observations,
-    const std::vector<StarCatalogEntry>& catalog,
-    const core::CameraIntrinsics& intrinsics);
+StarTrackerEstimate estimateStarTrackerAttitude(const std::vector<StarObservation>& observations,
+                                                const std::vector<StarCatalogEntry>& catalog,
+                                                const core::CameraIntrinsics& intrinsics);
 
 }  // namespace astro::localization
-

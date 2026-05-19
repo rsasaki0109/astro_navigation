@@ -14,4 +14,3 @@ void writeCsvTrajectory(const std::filesystem::path& output_path,
                         const std::vector<core::PoseStamped>& poses);
 
 }  // namespace astro::visualization
-

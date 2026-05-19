@@ -1,11 +1,10 @@
+#include <Eigen/Core>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
 #include <string>
-
-#include <Eigen/Core>
 
 #include "astro_navigation/navigation/pipeline.hpp"
 #include "astro_navigation/navigation/state_io.hpp"
@@ -28,12 +27,11 @@ struct Args {
 };
 
 void printUsage() {
-  std::cerr
-      << "Usage: mission_navigation_demo --observations stars.csv --catalog catalog.csv "
-         "--fx <fx> --fy <fy> --cx <cx> --cy <cy> "
-         "[--timestamp <sec>] [--position-x <m> --position-y <m> --position-z <m>] "
-         "[--position-sigma-m <m>] [--position-frame <name>] [--trn-summary summary.json] "
-         "[--output-json nav.json] [--output-csv nav.csv]\n";
+  std::cerr << "Usage: mission_navigation_demo --observations stars.csv --catalog catalog.csv "
+               "--fx <fx> --fy <fy> --cx <cx> --cy <cy> "
+               "[--timestamp <sec>] [--position-x <m> --position-y <m> --position-z <m>] "
+               "[--position-sigma-m <m>] [--position-frame <name>] [--trn-summary summary.json] "
+               "[--output-json nav.json] [--output-csv nav.csv]\n";
 }
 
 double parseDouble(const char* value, const std::string& name) {
@@ -101,11 +99,12 @@ Args parseArgs(const int argc, char** argv) {
     throw std::invalid_argument("--fx and --fy must be positive");
   }
 
-  const int position_value_count =
-      (args.position_x.has_value() ? 1 : 0) + (args.position_y.has_value() ? 1 : 0) +
-      (args.position_z.has_value() ? 1 : 0);
+  const int position_value_count = (args.position_x.has_value() ? 1 : 0) +
+                                   (args.position_y.has_value() ? 1 : 0) +
+                                   (args.position_z.has_value() ? 1 : 0);
   if (position_value_count != 0 && position_value_count != 3) {
-    throw std::invalid_argument("position lock requires --position-x, --position-y, and --position-z");
+    throw std::invalid_argument(
+        "position lock requires --position-x, --position-y, and --position-z");
   }
   if (!args.trn_summary.empty() && position_value_count != 0) {
     throw std::invalid_argument("--trn-summary cannot be combined with manual position arguments");
@@ -143,10 +142,10 @@ int main(const int argc, char** argv) {
               << astro::navigation::toString(state.status_reason) << ','
               << (state.quality.attitude_lock ? 1 : 0) << ','
               << (state.quality.position_lock ? 1 : 0) << ','
-              << state.quality.attitude_correspondences << ','
-              << state.quality.attitude_sigma_rad << ',' << state.quality.position_sigma_m << ','
-              << result.trn_matches << ',' << result.trn_inliers << ',' << state.position_frame_id << ','
-              << state.position.x() << ',' << state.position.y() << ',' << state.position.z() << ','
+              << state.quality.attitude_correspondences << ',' << state.quality.attitude_sigma_rad
+              << ',' << state.quality.position_sigma_m << ',' << result.trn_matches << ','
+              << result.trn_inliers << ',' << state.position_frame_id << ',' << state.position.x()
+              << ',' << state.position.y() << ',' << state.position.z() << ','
               << state.q_body_reference.x() << ',' << state.q_body_reference.y() << ','
               << state.q_body_reference.z() << ',' << state.q_body_reference.w() << ','
               << state.message << '\n';

@@ -2,11 +2,10 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <opencv2/imgproc.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <opencv2/imgproc.hpp>
 
 #include "astro_navigation/core/image_sequence.hpp"
 #include "astro_navigation/crater/crater_detector.hpp"
@@ -27,10 +26,9 @@ struct Args {
 };
 
 void printUsage() {
-  std::cerr
-      << "Usage: lunar_visual_odometry --images <dir|list.txt> --fx <fx> --fy <fy> --cx <cx> "
-         "--cy <cy> [--feature orb|sift] [--trajectory outputs/traj.tum] [--detect-craters] "
-         "[--clahe] [--clahe-clip-limit 2.0] [--clahe-tile-grid-size 8]\n";
+  std::cerr << "Usage: lunar_visual_odometry --images <dir|list.txt> --fx <fx> --fy <fy> --cx <cx> "
+               "--cy <cy> [--feature orb|sift] [--trajectory outputs/traj.tum] [--detect-craters] "
+               "[--clahe] [--clahe-clip-limit 2.0] [--clahe-tile-grid-size 8]\n";
 }
 
 double parseDouble(const char* value, const std::string& name) {
@@ -134,8 +132,9 @@ int main(const int argc, char** argv) {
       const auto estimate = odometry.process(image, static_cast<double>(index));
       trajectory.push_back(estimate.pose);
 
-      std::cout << estimate.frame_index << ',' << astro::localization::toString(args.vo.feature_type)
-                << ',' << estimate.motion.match_count << ',' << estimate.motion.inlier_count << ','
+      std::cout << estimate.frame_index << ','
+                << astro::localization::toString(args.vo.feature_type) << ','
+                << estimate.motion.match_count << ',' << estimate.motion.inlier_count << ','
                 << estimate.motion.message;
       if (args.detect_craters) {
         const auto craters = astro::crater::detectCircularCraters(image);

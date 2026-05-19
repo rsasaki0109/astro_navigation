@@ -30,14 +30,10 @@ MissionNavigationResult runMissionNavigation(const MissionNavigationInput& input
     result.position_lock = position_lock;
     result.trn_matches = position_lock.match_count;
     result.trn_inliers = position_lock.inlier_count;
-    applyPositionLock(result.state,
-                      position_lock.position,
-                      input.position_frame_id,
+    applyPositionLock(result.state, position_lock.position, input.position_frame_id,
                       input.position_sigma_override_m.value_or(position_lock.sigma_m));
   } else if (input.manual_position) {
-    applyPositionLock(result.state,
-                      input.manual_position->position,
-                      input.position_frame_id,
+    applyPositionLock(result.state, input.manual_position->position, input.position_frame_id,
                       input.position_sigma_override_m.value_or(input.manual_position->sigma_m));
   }
 

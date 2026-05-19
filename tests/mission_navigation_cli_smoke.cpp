@@ -1,3 +1,4 @@
+#include <Eigen/Core>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -5,8 +6,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include <Eigen/Core>
 
 namespace {
 
@@ -46,11 +45,9 @@ void writeStarFixture(const std::filesystem::path& catalog_path,
   const std::vector<Eigen::Vector2d> pixels = {
       {512.0, 512.0}, {620.0, 500.0}, {440.0, 610.0}, {570.0, 680.0}};
   for (std::size_t index = 0; index < pixels.size(); ++index) {
-    const Eigen::Vector3d bearing =
-        Eigen::Vector3d((pixels[index].x() - 512.0) / 1000.0,
-                        (pixels[index].y() - 512.0) / 1000.0,
-                        1.0)
-            .normalized();
+    const Eigen::Vector3d bearing = Eigen::Vector3d((pixels[index].x() - 512.0) / 1000.0,
+                                                    (pixels[index].y() - 512.0) / 1000.0, 1.0)
+                                        .normalized();
     catalog << "star_" << index << ',' << bearing.x() << ',' << bearing.y() << ',' << bearing.z()
             << '\n';
     observations << "star_" << index << ',' << pixels[index].x() << ',' << pixels[index].y()
@@ -62,7 +59,9 @@ void writeStarFixture(const std::filesystem::path& catalog_path,
 
 int main(const int argc, char** argv) {
   if (argc != 4) {
-    return fail("usage: mission_navigation_cli_smoke <mission-navigation-demo> <trn-summary.json> <output-dir>");
+    return fail(
+        "usage: mission_navigation_cli_smoke <mission-navigation-demo> <trn-summary.json> "
+        "<output-dir>");
   }
 
   const std::filesystem::path app_path(argv[1]);

@@ -1,9 +1,8 @@
 #pragma once
 
-#include <vector>
-
 #include <opencv2/core.hpp>
 #include <opencv2/features2d.hpp>
+#include <vector>
 
 namespace astro::terrain {
 
@@ -17,4 +16,3 @@ std::vector<TerrainLandmark> extractOrbTerrainLandmarks(const cv::Mat& gray_imag
                                                         int max_features = 1000);
 
 }  // namespace astro::terrain
-
