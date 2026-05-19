@@ -22,8 +22,8 @@
 
 #include <Eigen/Core>
 
-#include "astro_localization/localization/pair_id_solver.hpp"
-#include "astro_localization/localization/pair_index_loader.hpp"
+#include "astro_navigation/localization/pair_id_solver.hpp"
+#include "astro_navigation/localization/pair_index_loader.hpp"
 
 namespace {
 
@@ -54,7 +54,7 @@ struct Args {
   std::filesystem::path calibration_json_path;
   std::optional<double> fx, fy, cx, cy;
   std::optional<double> k1, k2, p1, p2;
-  astro_localization::localization::LostInSpaceConfig config;
+  astro_navigation::localization::LostInSpaceConfig config;
 };
 
 // Minimal regex-based extractor for the camera-calibration JSON schema written
@@ -312,8 +312,8 @@ std::string optional_arcsec(double rad) {
 
 void write_metadata_json(
     const std::filesystem::path& csv_path,
-    const astro_localization::localization::LostInSpaceResult& result,
-    const astro_localization::localization::PairIndex& index,
+    const astro_navigation::localization::LostInSpaceResult& result,
+    const astro_navigation::localization::PairIndex& index,
     const Args& args,
     std::size_t observation_count) {
   std::filesystem::path json_path = csv_path;
@@ -373,13 +373,13 @@ void write_metadata_json(
 int main(int argc, char** argv) {
   try {
     const Args args = parse_args(argc, argv);
-    const auto index = astro_localization::localization::load_pair_index_bin(args.index_path);
+    const auto index = astro_navigation::localization::load_pair_index_bin(args.index_path);
     const auto loaded = load_observations(
         args.observations_path, *args.fx, *args.fy, *args.cx, *args.cy,
         args.k1.value_or(0.0), args.k2.value_or(0.0),
         args.p1.value_or(0.0), args.p2.value_or(0.0));
 
-    const auto result = astro_localization::localization::identify_lost_in_space(
+    const auto result = astro_navigation::localization::identify_lost_in_space(
         loaded.bearings, loaded.magnitudes, index, args.config);
 
     std::map<int, std::string> assignments_by_id;

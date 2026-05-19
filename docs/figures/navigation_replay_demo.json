@@ -1,0 +1,25 @@
+{
+  "output": "docs/figures/navigation_replay_demo.gif",
+  "states": [
+    {
+      "status": "LOST",
+      "status_reason": "NO_LOCKS"
+    },
+    {
+      "status": "DEGRADED",
+      "status_reason": "ATTITUDE_ONLY"
+    },
+    {
+      "status": "OK",
+      "status_reason": "NONE"
+    }
+  ],
+  "position_sigma_m": 143.95614095,
+  "trn_quality_terms": {
+    "map_resolution": 143.9561409500211,
+    "reprojection": 6.911283349000403,
+    "inlier_geometry": 75.17864273102316,
+    "dominant": "map_resolution"
+  },
+  "position_error_m": 31.92681015364329
+}

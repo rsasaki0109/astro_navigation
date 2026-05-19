@@ -1,4 +1,4 @@
-#include "astro_localization/localization/pair_index_loader.hpp"
+#include "astro_navigation/localization/pair_index_loader.hpp"
 
 #include <array>
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace astro_localization::localization {
+namespace astro_navigation::localization {
 
 namespace {
 
@@ -120,4 +120,4 @@ PairIndex load_pair_index_bin(const std::filesystem::path& path) {
   return index;
 }
 
-}  // namespace astro_localization::localization
+}  // namespace astro_navigation::localization

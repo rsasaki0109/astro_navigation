@@ -1,4 +1,4 @@
-#include "astro_localization/core/image_sequence.hpp"
+#include "astro_navigation/core/image_sequence.hpp"
 
 #include <algorithm>
 #include <cctype>

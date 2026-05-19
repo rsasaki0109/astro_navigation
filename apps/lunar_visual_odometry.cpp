@@ -8,10 +8,10 @@
 
 #include <opencv2/imgproc.hpp>
 
-#include "astro_localization/core/image_sequence.hpp"
-#include "astro_localization/crater/crater_detector.hpp"
-#include "astro_localization/localization/visual_odometry.hpp"
-#include "astro_localization/visualization/trajectory_io.hpp"
+#include "astro_navigation/core/image_sequence.hpp"
+#include "astro_navigation/crater/crater_detector.hpp"
+#include "astro_navigation/localization/visual_odometry.hpp"
+#include "astro_navigation/visualization/trajectory_io.hpp"
 
 namespace {
 

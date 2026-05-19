@@ -1,4 +1,4 @@
-#include "astro_localization/terrain/landmarks.hpp"
+#include "astro_navigation/terrain/landmarks.hpp"
 
 #include <opencv2/features2d.hpp>
 

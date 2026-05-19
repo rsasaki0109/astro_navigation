@@ -10,9 +10,9 @@
 
 #include <opencv2/imgproc.hpp>
 
-#include "astro_localization/core/image_sequence.hpp"
-#include "astro_localization/localization/stereo_visual_odometry.hpp"
-#include "astro_localization/visualization/trajectory_io.hpp"
+#include "astro_navigation/core/image_sequence.hpp"
+#include "astro_navigation/localization/stereo_visual_odometry.hpp"
+#include "astro_navigation/visualization/trajectory_io.hpp"
 
 namespace {
 

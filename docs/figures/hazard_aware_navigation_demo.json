@@ -1,0 +1,38 @@
+{
+  "output": "docs/figures/hazard_aware_navigation_demo.gif",
+  "start_pixel": [
+    640,
+    640
+  ],
+  "waypoint_pixel": [
+    900,
+    430
+  ],
+  "waypoint_xy_m": [
+    64780.2634275095,
+    30950.57030425454
+  ],
+  "path_points": 40,
+  "frames": 40,
+  "position_sigma_m": 143.9561409500211,
+  "hazard_model": "0.65*darkness + 0.55*gradient",
+  "blocked_cost": 8.5,
+  "planner": "cpp_hazard_route_demo",
+  "route_metrics": {
+    "route_length_m": 25850.314550163,
+    "straight_line_length_m": 23310.2597391118,
+    "detour_ratio": 1.10896724616025,
+    "mean_cost": 4.594126916,
+    "max_cost": 7.97998905,
+    "min_clearance_cells": 1.4142135623731,
+    "min_clearance_m": 766.436618986966
+  },
+  "states": [
+    "LOST",
+    "DEGRADED",
+    "OK",
+    "DEGRADED",
+    "OK",
+    "ARRIVED"
+  ]
+}

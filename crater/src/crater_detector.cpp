@@ -1,4 +1,4 @@
-#include "astro_localization/crater/crater_detector.hpp"
+#include "astro_navigation/crater/crater_detector.hpp"
 
 #include <algorithm>
 

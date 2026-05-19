@@ -5,22 +5,22 @@ truncates around ~120 characters in most layouts, so the recommendation now is t
 
 ## Description (target ≤ 120 chars)
 
-### Recommended (one-liner, 96 chars)
+### Recommended (one-liner, 94 chars)
 
 ```
-C++20 OSS for GNSS-denied space localization: star trackers, lost-in-space ID, lunar VO, TRN.
+C++20 OSS for GNSS-denied space navigation: star trackers, lost-in-space ID, lunar VO, TRN.
 ```
 
 ### Even tighter (60 chars)
 
 ```
-GNSS-denied space localization: star trackers, lunar VO, TRN.
+GNSS-denied space navigation: star trackers, lunar VO, TRN.
 ```
 
 ### Long form (kept as a fallback, 287 chars; will visually truncate)
 
 ```
-Space-native localization OSS in C++20: star tracker attitude, lost-in-space star identification at
+Space-native navigation OSS in C++20: star tracker attitude, lost-in-space star identification at
 HYG mag≤8 (40k indexed stars, 64/64 correct), lunar visual odometry on NASA POLAR, and terrain-relative
 navigation. Python prototypes alongside the C++ apps.
 ```
@@ -29,7 +29,7 @@ navigation. Python prototypes alongside the C++ apps.
 
 If a project page is added later, point it at the docs landing or experiments log:
 
-- `https://github.com/<owner>/astro_localization/blob/main/docs/space_localization.md`
+- `https://github.com/<owner>/astro_navigation/blob/main/docs/space_localization.md`
 - or the experiments log: `.../docs/experiments.md`
 
 ## Topics
@@ -59,8 +59,8 @@ Recommended GitHub topics (max 20; GitHub normalizes to lowercase, hyphenated):
 ## Setting these via gh CLI
 
 ```bash
-gh repo edit <owner>/astro_localization \
-  --description "C++20 OSS for GNSS-denied space localization: star trackers, lost-in-space ID, lunar VO, TRN." \
+gh repo edit <owner>/astro_navigation \
+  --description "C++20 OSS for GNSS-denied space navigation: star trackers, lost-in-space ID, lunar VO, TRN." \
   --add-topic space-robotics \
   --add-topic localization \
   --add-topic visual-odometry \

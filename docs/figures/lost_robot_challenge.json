@@ -20,7 +20,7 @@
     "attitude_error_deg": 0.002115905351733599
   },
   "trn": {
-    "fixture_dir": "/media/autoware/aa/workspace/astro_localization/docs/figures/trn_lro_tycho_terminal",
+    "fixture_dir": "/media/autoware/aa/workspace/astro_navigation/docs/figures/trn_lro_tycho_terminal",
     "target": "tycho",
     "position_error_m": 31.92681015364329,
     "match_count": 82,

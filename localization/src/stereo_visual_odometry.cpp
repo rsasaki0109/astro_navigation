@@ -1,4 +1,4 @@
-#include "astro_localization/localization/stereo_visual_odometry.hpp"
+#include "astro_navigation/localization/stereo_visual_odometry.hpp"
 
 #include <algorithm>
 #include <cmath>

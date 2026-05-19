@@ -1,4 +1,4 @@
-#include "astro_localization/localization/pair_id_solver.hpp"
+#include "astro_navigation/localization/pair_id_solver.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -18,7 +18,7 @@
 #include <Eigen/Geometry>
 #include <Eigen/SVD>
 
-namespace astro_localization::localization {
+namespace astro_navigation::localization {
 
 namespace {
 
@@ -605,4 +605,4 @@ LostInSpaceResult identify_lost_in_space(
   return result;
 }
 
-}  // namespace astro_localization::localization
+}  // namespace astro_navigation::localization

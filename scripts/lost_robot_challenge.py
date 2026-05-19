@@ -6,9 +6,10 @@ The challenge story:
   A lunar robot wakes up with no GNSS. It gets one star-camera frame and one
   nadir lunar camera frame. The card shows the two localization locks:
 
-  - star tracker attitude from an identified synthetic star field, solved by
-    the C++ `star_tracker_attitude` app;
-  - terrain-relative position from a bundled real LRO/LOLA Tycho fixture.
+  - star tracker attitude from an identified synthetic star field;
+  - terrain-relative position from a bundled real LRO/LOLA Tycho fixture;
+  - a C++ `mission_navigation_demo` state that fuses those locks into
+    navigation health.
 
 The default path is deliberately offline-friendly: no HYG catalog, pair index,
 or LRO download is required. It uses the same smoke-test star fixture as CI and
@@ -79,24 +80,14 @@ def read_observations(path: Path) -> list[tuple[str, float, float]]:
     return rows
 
 
-def parse_star_tracker_output(stdout: str) -> dict:
-    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-    if len(lines) < 2:
-        raise SystemExit(f"unexpected star_tracker_attitude output:\n{stdout}")
-    header = lines[-2].split(",")
-    values = lines[-1].split(",")
-    row = dict(zip(header, values, strict=False))
+def star_estimate_from_nav_state(nav_state: dict) -> dict:
+    quality = nav_state["quality"]
     return {
-        "success": row.get("success") == "1",
-        "correspondences": int(row["correspondences"]),
-        "rms_direction_error_rad": float(row["rms_direction_error_rad"]),
-        "q_xyzw": [
-            float(row["qx"]),
-            float(row["qy"]),
-            float(row["qz"]),
-            float(row["qw"]),
-        ],
-        "status": row.get("status", ""),
+        "success": bool(quality["attitude_lock"]),
+        "correspondences": int(quality["attitude_correspondences"]),
+        "rms_direction_error_rad": float(quality["attitude_sigma_rad"]),
+        "q_xyzw": [float(value) for value in nav_state["q_body_reference_xyzw"]],
+        "status": nav_state["status"],
     }
 
 
@@ -212,6 +203,7 @@ def render_hud(
     star_estimate: dict,
     star_truth: dict,
     trn: dict,
+    nav_state: dict,
     size: tuple[int, int],
 ) -> np.ndarray:
     width, height = size
@@ -223,6 +215,7 @@ def render_hud(
 
     y = 130
     rows = [
+        ("NAV STATE", f"{nav_state['status']} - {nav_state['message']}"),
         ("ATTITUDE", f"{star_estimate['correspondences']} stars, {angle_error:.4f} deg quaternion error"),
         ("SURFACE", "Tycho central peak, real LRO WAC + LOLA fixture"),
         ("ALTITUDE", f"{trn['rover_truth']['xyz_m'][2] / 1000.0:.1f} km"),
@@ -234,9 +227,12 @@ def render_hud(
         text(panel, value, (150, y), scale=0.52, color=(236, 238, 236))
         y += 38
 
-    status = "ROBOT LOCALIZED"
-    cv2.rectangle(panel, (24, height - 76), (width - 24, height - 24), (42, 92, 62), -1)
-    cv2.rectangle(panel, (24, height - 76), (width - 24, height - 24), (105, 220, 135), 2)
+    localized = nav_state["status"] == "OK"
+    status = "NAVIGATION LOCK" if localized else f"NAVIGATION {nav_state['status']}"
+    fill = (42, 92, 62) if localized else (82, 72, 36)
+    stroke = (105, 220, 135) if localized else (90, 190, 235)
+    cv2.rectangle(panel, (24, height - 76), (width - 24, height - 24), fill, -1)
+    cv2.rectangle(panel, (24, height - 76), (width - 24, height - 24), stroke, 2)
     text(panel, status, (44, height - 42), scale=0.75, color=(210, 255, 220), thickness=2)
     return panel
 
@@ -278,7 +274,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=REPO_ROOT / "docs" / "figures" / "lost_robot_challenge.png")
     parser.add_argument("--summary-output", type=Path, default=None)
     parser.add_argument("--workdir", type=Path, default=REPO_ROOT / "outputs" / "lost_robot_challenge")
-    parser.add_argument("--star-app", type=Path, default=REPO_ROOT / "build" / "apps" / "star_tracker_attitude")
+    parser.add_argument("--nav-app", type=Path, default=REPO_ROOT / "build" / "apps" / "mission_navigation_demo")
     parser.add_argument("--trn-fixture-dir", type=Path, default=REPO_ROOT / "docs" / "figures" / "trn_lro_tycho_terminal")
     parser.add_argument("--stars", type=int, default=30)
     parser.add_argument("--noise-px", type=float, default=0.1)
@@ -287,8 +283,8 @@ def main() -> int:
     parser.add_argument("--height", type=int, default=720)
     args = parser.parse_args()
 
-    if not args.star_app.exists():
-        raise SystemExit(f"missing star tracker app: {args.star_app} (run cmake --build build --parallel)")
+    if not args.nav_app.exists():
+        raise SystemExit(f"missing navigation app: {args.nav_app} (run cmake --build build --parallel)")
 
     args.workdir.mkdir(parents=True, exist_ok=True)
     run_capture([
@@ -305,8 +301,18 @@ def main() -> int:
     ])
 
     star_case = args.workdir / "star_case"
-    star_stdout = run_capture([
-        str(args.star_app),
+    ortho_path = args.trn_fixture_dir / "ortho.png"
+    rover_path = args.trn_fixture_dir / "rover.png"
+    summary_path = args.trn_fixture_dir / "summary.json"
+    ortho = cv2.imread(str(ortho_path), cv2.IMREAD_GRAYSCALE)
+    rover = cv2.imread(str(rover_path), cv2.IMREAD_GRAYSCALE)
+    if ortho is None or rover is None or not summary_path.exists():
+        raise SystemExit(f"missing TRN fixture assets under {args.trn_fixture_dir}")
+    trn = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    nav_state_path = args.workdir / "nav_state.json"
+    run_capture([
+        str(args.nav_app),
         "--catalog",
         str(star_case / "catalog.csv"),
         "--observations",
@@ -319,24 +325,26 @@ def main() -> int:
         "512",
         "--cy",
         "512",
+        "--trn-summary",
+        str(summary_path),
+        "--output-json",
+        str(nav_state_path),
     ])
-    star_estimate = parse_star_tracker_output(star_stdout)
+    nav_state = json.loads(nav_state_path.read_text(encoding="utf-8"))
+    star_estimate = star_estimate_from_nav_state(nav_state)
     star_truth = json.loads((star_case / "truth.json").read_text(encoding="utf-8"))
     observations = read_observations(star_case / "observations.csv")
-
-    ortho_path = args.trn_fixture_dir / "ortho.png"
-    rover_path = args.trn_fixture_dir / "rover.png"
-    summary_path = args.trn_fixture_dir / "summary.json"
-    ortho = cv2.imread(str(ortho_path), cv2.IMREAD_GRAYSCALE)
-    rover = cv2.imread(str(rover_path), cv2.IMREAD_GRAYSCALE)
-    if ortho is None or rover is None or not summary_path.exists():
-        raise SystemExit(f"missing TRN fixture assets under {args.trn_fixture_dir}")
-    trn = json.loads(summary_path.read_text(encoding="utf-8"))
 
     star_panel = render_star_panel(observations, star_estimate, star_truth, size=(560, 560))
     rover_panel = render_rover_panel(rover, trn, size=(720, 355))
     map_panel = render_map_panel(ortho, trn, size=(720, 335))
-    hud_panel = render_hud(star_estimate=star_estimate, star_truth=star_truth, trn=trn, size=(560, 335))
+    hud_panel = render_hud(
+        star_estimate=star_estimate,
+        star_truth=star_truth,
+        trn=trn,
+        nav_state=nav_state,
+        size=(560, 335),
+    )
     frame = composite(
         star_panel=star_panel,
         rover_panel=rover_panel,
@@ -356,6 +364,16 @@ def main() -> int:
             "attitude_error_deg": quat_angle_deg(
                 star_estimate["q_xyzw"], star_truth["q_camera_inertial_xyzw"]
             ),
+        },
+        "navigation": {
+            "nav_state_json": str(nav_state_path),
+            "status": nav_state["status"],
+            "status_reason": nav_state["status_reason"],
+            "message": nav_state["message"],
+            "position_m": nav_state["position_m"],
+            "position_frame_id": nav_state["position_frame_id"],
+            "q_body_reference_xyzw": nav_state["q_body_reference_xyzw"],
+            "quality": nav_state["quality"],
         },
         "trn": {
             "fixture_dir": str(args.trn_fixture_dir),

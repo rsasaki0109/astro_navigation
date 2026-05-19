@@ -1,4 +1,4 @@
-#include "astro_localization/visualization/trajectory_io.hpp"
+#include "astro_navigation/visualization/trajectory_io.hpp"
 
 #include <fstream>
 #include <iomanip>
