@@ -1,0 +1,56 @@
+{
+  "output": "docs/figures/dynamic_hazard_replanning_demo.gif",
+  "planner": "cpp_hazard_route_demo",
+  "replan_count": 1,
+  "replan_frame": 24,
+  "start_pixel": [
+    640,
+    640
+  ],
+  "waypoint_pixel": [
+    900,
+    430
+  ],
+  "waypoint_xy_m": [
+    64780.2634275095,
+    30950.57030425454
+  ],
+  "blocked_route_cell": [
+    111,
+    66
+  ],
+  "blocked_route_pixel": [
+    840,
+    501
+  ],
+  "blocked_cells": 253,
+  "old_route_points": 40,
+  "new_route_points": 22,
+  "final_route_points": 38,
+  "old_route_metrics": {
+    "route_length_m": 25850.314550163,
+    "straight_line_length_m": 23310.2597391118,
+    "detour_ratio": 1.10896724616025,
+    "mean_cost": 4.594126916,
+    "max_cost": 7.97998905,
+    "min_clearance_cells": 1.4142135623731,
+    "min_clearance_m": 766.436618986966
+  },
+  "new_route_metrics": {
+    "route_length_m": 14299.2962919135,
+    "straight_line_length_m": 13385.2401073672,
+    "detour_ratio": 1.06828836667959,
+    "mean_cost": 4.99324719409091,
+    "max_cost": 7.66920185,
+    "min_clearance_cells": 1,
+    "min_clearance_m": 541.952530635374
+  },
+  "blocked_cost": 8.5,
+  "states": [
+    "GUIDANCE ACTIVE",
+    "ROUTE INVALID",
+    "REPLANNING",
+    "NEW ROUTE LOCK",
+    "ARRIVED"
+  ]
+}
