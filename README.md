@@ -8,12 +8,13 @@
 GNSS-denied space navigation for lunar robots: star-tracker attitude, terrain-relative position
 locks, navigation health, and hazard-aware route planning.
 
-[MP4 video](docs/figures/dynamic_hazard_replanning_demo.mp4)
+[MP4 video](docs/figures/confidence_aware_replanning_demo.mp4)
 
-![Dynamic hazard replanning demo fallback: a lunar rover invalidates an old route, replans around a new blocked hazard, and resumes toward the waypoint](docs/figures/dynamic_hazard_replanning_demo.gif)
+![Confidence-aware replanning demo fallback: a lunar rover follows a TRN-confidence-aware route, detects a new blocked hazard, replans through more localizable terrain, and tracks navigation risk](docs/figures/confidence_aware_replanning_demo.gif)
 
 The headline demo is a lunar autopilot replay: a rover gets a TRN position lock over Tycho, follows a
-hazard-aware route, detects a newly blocked segment, replans with the C++ `hazard_route_demo`, and
+route biased toward stronger terrain-relative navigation confidence, detects a newly blocked
+segment, replans with the C++ `hazard_route_demo`, and tracks route-level navigation risk while it
 continues toward the waypoint.
 
 The project is intentionally space-native: **star tracker attitude**, **lost-in-space star
@@ -27,7 +28,7 @@ alongside the C++ apps.
 | Capability | Current artifact |
 | --- | --- |
 | Star tracker attitude | `build/apps/star_tracker_attitude` |
-| Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState` |
+| Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
@@ -77,6 +78,8 @@ build/apps/mission_navigation_demo \
   --observations outputs/quick_star_case/observations.csv \
   --fx 1000 --fy 1000 --cx 512 --cy 512 \
   --trn-summary docs/figures/trn_lro_tycho_terminal/summary.json \
+  --localizability-score 0.63 \
+  --route-trn-confidence 0.38 \
   --output-json outputs/quick_star_case/nav_state.json \
   --output-csv outputs/quick_star_case/nav_state.csv
 ```
@@ -84,7 +87,7 @@ build/apps/mission_navigation_demo \
 Expected shape:
 
 ```text
-status,status_reason,attitude_lock,position_lock,correspondences,attitude_sigma_rad,position_sigma_m,trn_matches,trn_inliers,frame,x,y,z,qx,qy,qz,qw,message
+status,status_reason,attitude_lock,position_lock,correspondences,attitude_sigma_rad,position_sigma_m,localizability_score,route_trn_confidence,navigation_risk_score,trn_matches,trn_inliers,frame,x,y,z,qx,qy,qz,qw,message
 OK,NONE,1,1,...
 ```
 
@@ -175,6 +178,29 @@ ffmpeg -y -i docs/figures/dynamic_hazard_replanning_demo.gif \
   -movflags +faststart -pix_fmt yuv420p \
   -vf "fps=12,scale=trunc(iw/2)*2:trunc(ih/2)*2" \
   docs/figures/dynamic_hazard_replanning_demo.mp4
+```
+
+### Confidence-aware replanning
+
+This replay uses the same dynamic hazard event, but the planner receives a fused
+cost map: blocked hazards remain hard constraints, while low TRN confidence
+adds route cost. The side panel exposes the mission-facing risk fields now
+available in `NavState`: localizability score, route TRN confidence, and the
+derived navigation risk score.
+
+[MP4 video](docs/figures/confidence_aware_replanning_demo.mp4)
+
+![Confidence-aware replanning demo fallback: heatmap confidence, blocked hazard, replanned localizable route, and route-level navigation risk over Tycho](docs/figures/confidence_aware_replanning_demo.gif)
+
+```bash
+cmake --build build --parallel
+python3 scripts/render_confidence_aware_replanning_demo.py \
+  --planner-app build/apps/hazard_route_demo \
+  --output docs/figures/confidence_aware_replanning_demo.gif
+ffmpeg -y -i docs/figures/confidence_aware_replanning_demo.gif \
+  -movflags +faststart -pix_fmt yuv420p \
+  -vf "fps=12,scale=trunc(iw/2)*2:trunc(ih/2)*2" \
+  docs/figures/confidence_aware_replanning_demo.mp4
 ```
 
 ### TRN confidence heatmap

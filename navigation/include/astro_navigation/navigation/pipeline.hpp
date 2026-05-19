@@ -24,6 +24,8 @@ struct MissionNavigationInput {
   std::optional<ManualPositionInput> manual_position;
   std::optional<std::string> trn_summary_path;
   std::optional<double> position_sigma_override_m;
+  std::optional<double> localizability_score;
+  std::optional<double> route_trn_confidence;
 };
 
 struct MissionNavigationResult {

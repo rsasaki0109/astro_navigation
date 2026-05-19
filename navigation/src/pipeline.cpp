@@ -37,6 +37,11 @@ MissionNavigationResult runMissionNavigation(const MissionNavigationInput& input
                       input.position_sigma_override_m.value_or(input.manual_position->sigma_m));
   }
 
+  if (input.localizability_score || input.route_trn_confidence) {
+    applyNavigationRisk(result.state, input.localizability_score.value_or(1.0),
+                        input.route_trn_confidence.value_or(1.0));
+  }
+
   return result;
 }
 
