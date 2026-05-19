@@ -1,0 +1,30 @@
+{
+  "output": "docs/figures/lost_robot_challenge.png",
+  "star_tracker": {
+    "success": true,
+    "correspondences": 30,
+    "rms_direction_error_rad": 0.000141226,
+    "q_xyzw": [
+      0.0410332,
+      -0.0570485,
+      0.106383,
+      0.991839
+    ],
+    "status": "ok",
+    "truth_q_xyzw": [
+      0.04102099830731896,
+      -0.05703593733175144,
+      0.10638883132135128,
+      0.9918395011899035
+    ],
+    "attitude_error_deg": 0.002115905351733599
+  },
+  "trn": {
+    "fixture_dir": "/media/autoware/aa/workspace/astro_localization/docs/figures/trn_lro_tycho_terminal",
+    "target": "tycho",
+    "position_error_m": 31.92681015364329,
+    "match_count": 82,
+    "pnp_inliers": 11,
+    "altitude_m": 30000.0
+  }
+}
