@@ -1,14 +1,38 @@
 # astro_navigation
 
-`astro_navigation` is an early-stage C++20 + Python toolkit for localization and navigation in
-GNSS-denied space robotics: lunar/Mars rovers, orbital robots, planetary explorers, star trackers,
-and terrain-relative navigation.
+[![ci](https://github.com/rsasaki0109/astro_navigation/actions/workflows/ci.yml/badge.svg)](https://github.com/rsasaki0109/astro_navigation/actions/workflows/ci.yml)
+![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C)
+![Python](https://img.shields.io/badge/Python-3.x-3776AB)
+![OpenCV](https://img.shields.io/badge/OpenCV-TRN%20%7C%20VO-5C3EE8)
+
+GNSS-denied space navigation for lunar robots: star-tracker attitude, terrain-relative position
+locks, navigation health, and hazard-aware route planning.
+
+<video src="docs/figures/dynamic_hazard_replanning_demo.mp4" controls muted loop playsinline>
+  Dynamic hazard replanning demo.
+</video>
+
+![Dynamic hazard replanning demo fallback: a lunar rover invalidates an old route, replans around a new blocked hazard, and resumes toward the waypoint](docs/figures/dynamic_hazard_replanning_demo.gif)
+
+The headline demo is a lunar autopilot replay: a rover gets a TRN position lock over Tycho, follows a
+hazard-aware route, detects a newly blocked segment, replans with the C++ `hazard_route_demo`, and
+continues toward the waypoint.
 
 The project is intentionally space-native: **star tracker attitude**, **lost-in-space star
 identification** against public catalogs, **lunar visual odometry**, and **terrain-relative
 navigation on real LRO/LOLA data** — not generic Earth robotics VO with lunar branding. The
 implementation is deliberately small so experiments converge quickly, and Python prototypes live
 alongside the C++ apps.
+
+## What Is Inside
+
+| Capability | Current artifact |
+| --- | --- |
+| Star tracker attitude | `build/apps/star_tracker_attitude` |
+| Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState` |
+| Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures and TRN summaries |
+| Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
+| Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
 ## Why Watch This Repo
 
