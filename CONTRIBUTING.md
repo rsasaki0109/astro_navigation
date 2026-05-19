@@ -1,6 +1,6 @@
 # Contributing
 
-`astro_localization` is early-stage research software. The best contributions are small,
+`astro_navigation` is early-stage research software. The best contributions are small,
 reproducible improvements that keep the space-localization focus sharp.
 
 ## Good First Contributions

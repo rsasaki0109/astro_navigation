@@ -1,4 +1,4 @@
-#include "astro_localization/visualization/trajectory_io.hpp"
+#include "astro_navigation/visualization/trajectory_io.hpp"
 
 #include <fstream>
 #include <iomanip>
@@ -25,8 +25,8 @@ void writeTumTrajectory(const std::filesystem::path& output_path,
   for (const auto& pose : poses) {
     const Eigen::Quaterniond q(pose.T_world_camera.linear());
     const Eigen::Vector3d t = pose.T_world_camera.translation();
-    output << pose.timestamp << ' ' << t.x() << ' ' << t.y() << ' ' << t.z() << ' ' << q.x()
-           << ' ' << q.y() << ' ' << q.z() << ' ' << q.w() << '\n';
+    output << pose.timestamp << ' ' << t.x() << ' ' << t.y() << ' ' << t.z() << ' ' << q.x() << ' '
+           << q.y() << ' ' << q.z() << ' ' << q.w() << '\n';
   }
 }
 
@@ -37,10 +37,9 @@ void writeCsvTrajectory(const std::filesystem::path& output_path,
   for (const auto& pose : poses) {
     const Eigen::Quaterniond q(pose.T_world_camera.linear());
     const Eigen::Vector3d t = pose.T_world_camera.translation();
-    output << pose.timestamp << ',' << t.x() << ',' << t.y() << ',' << t.z() << ',' << q.x()
-           << ',' << q.y() << ',' << q.z() << ',' << q.w() << '\n';
+    output << pose.timestamp << ',' << t.x() << ',' << t.y() << ',' << t.z() << ',' << q.x() << ','
+           << q.y() << ',' << q.z() << ',' << q.w() << '\n';
   }
 }
 
 }  // namespace astro::visualization
-

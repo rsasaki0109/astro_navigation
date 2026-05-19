@@ -1,4 +1,4 @@
-# astro_localization Handoff Plan
+# astro_navigation Handoff Plan
 
 Last updated: 2026-05-09 (TRN cycle 4 landed: terminal-descent extension on
 real LRO/LOLA. WAC z=8 (~82 m/px, 25 tiles ~ 1 MB total) + LOLA LDEM_64
@@ -66,7 +66,7 @@ identification, with lunar terrain-relative navigation kept as a later parallel 
 ## Operating Notes
 
 - Workspace root used in this session:
-  `astro_loc_ws/astro_localization`
+  `astro_loc_ws/astro_navigation`
 - Shell commands in this environment should be prefixed with `rtk`.
 - The repository currently appears as untracked files in `git status --short`; do not assume a clean git
   baseline.
@@ -80,7 +80,7 @@ identification, with lunar terrain-relative navigation kept as a later parallel 
 
 ## Project Goal
 
-Build `astro_localization`, a practical OSS localization/navigation stack for GNSS-denied space robotics:
+Build `astro_navigation`, a practical OSS localization/navigation stack for GNSS-denied space robotics:
 
 - lunar rovers
 - Mars rovers

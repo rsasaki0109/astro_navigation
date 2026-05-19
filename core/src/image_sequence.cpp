@@ -1,21 +1,19 @@
-#include "astro_localization/core/image_sequence.hpp"
+#include "astro_navigation/core/image_sequence.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <fstream>
-#include <stdexcept>
-
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <stdexcept>
 
 namespace astro::core {
 namespace {
 
 std::string lowerExtension(const std::filesystem::path& path) {
   std::string ext = path.extension().string();
-  std::ranges::transform(ext, ext.begin(), [](unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
+  std::ranges::transform(ext, ext.begin(),
+                         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return ext;
 }
 
@@ -23,8 +21,8 @@ std::string lowerExtension(const std::filesystem::path& path) {
 
 bool isImageFile(const std::filesystem::path& path) {
   const std::string ext = lowerExtension(path);
-  return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" ||
-         ext == ".tif" || ext == ".tiff" || ext == ".pgm";
+  return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".tif" ||
+         ext == ".tiff" || ext == ".pgm";
 }
 
 std::vector<std::filesystem::path> loadImageSequence(const std::filesystem::path& input) {
@@ -69,4 +67,3 @@ cv::Mat loadGrayImage(const std::filesystem::path& path) {
 }
 
 }  // namespace astro::core
-

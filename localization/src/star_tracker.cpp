@@ -1,4 +1,4 @@
-#include "astro_localization/localization/star_tracker.hpp"
+#include "astro_navigation/localization/star_tracker.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,7 +20,8 @@ std::vector<std::string> splitCsvLine(const std::string& line) {
   return fields;
 }
 
-Eigen::Vector3d bearingFromPixel(const cv::Point2d& pixel, const core::CameraIntrinsics& intrinsics) {
+Eigen::Vector3d bearingFromPixel(const cv::Point2d& pixel,
+                                 const core::CameraIntrinsics& intrinsics) {
   Eigen::Vector3d bearing((pixel.x - intrinsics.cx) / intrinsics.fx,
                           (pixel.y - intrinsics.cy) / intrinsics.fy, 1.0);
   return bearing.normalized();
@@ -110,13 +111,13 @@ StarTrackerEstimate estimateStarTrackerAttitude(const std::vector<StarObservatio
     covariance += camera_vectors[i] * inertial_vectors[i].transpose();
   }
 
-  const Eigen::JacobiSVD<Eigen::Matrix3d> svd(covariance, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  const Eigen::JacobiSVD<Eigen::Matrix3d> svd(covariance,
+                                              Eigen::ComputeFullU | Eigen::ComputeFullV);
   Eigen::Matrix3d correction = Eigen::Matrix3d::Identity();
   if ((svd.matrixU() * svd.matrixV().transpose()).determinant() < 0.0) {
     correction(2, 2) = -1.0;
   }
-  const Eigen::Matrix3d R_camera_inertial =
-      svd.matrixU() * correction * svd.matrixV().transpose();
+  const Eigen::Matrix3d R_camera_inertial = svd.matrixU() * correction * svd.matrixV().transpose();
 
   double squared_error_sum = 0.0;
   for (std::size_t i = 0; i < camera_vectors.size(); ++i) {

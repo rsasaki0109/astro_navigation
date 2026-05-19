@@ -1,6 +1,6 @@
-# astro_localization
+# astro_navigation
 
-`astro_localization` is an early-stage C++20 + Python toolkit for localization and navigation in
+`astro_navigation` is an early-stage C++20 + Python toolkit for localization and navigation in
 GNSS-denied space robotics: lunar/Mars rovers, orbital robots, planetary explorers, star trackers,
 and terrain-relative navigation.
 
@@ -29,6 +29,7 @@ star field, estimates camera attitude in C++, and prints the recovered quaternio
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 
 python3 scripts/generate_star_tracker_case.py --output-dir outputs/quick_star_case
 
@@ -45,15 +46,38 @@ success,correspondences,rms_direction_error_rad,qx,qy,qz,qw,status
 1,30,...
 ```
 
-## Demo
+The first navigation-facing CLI wraps that attitude lock in a mission state and can optionally attach
+a terrain-relative position lock:
+
+```bash
+build/apps/mission_navigation_demo \
+  --catalog outputs/quick_star_case/catalog.csv \
+  --observations outputs/quick_star_case/observations.csv \
+  --fx 1000 --fy 1000 --cx 512 --cy 512 \
+  --trn-summary docs/figures/trn_lro_tycho_terminal/summary.json \
+  --output-json outputs/quick_star_case/nav_state.json \
+  --output-csv outputs/quick_star_case/nav_state.csv
+```
+
+Expected shape:
+
+```text
+status,status_reason,attitude_lock,position_lock,correspondences,attitude_sigma_rad,position_sigma_m,trn_matches,trn_inliers,frame,x,y,z,qx,qy,qz,qw,message
+OK,NONE,1,1,...
+```
+
+## Featured Demos
+
+The first-screen demos show the current navigation direction: state estimation, terrain-relative
+position lock, and hazard-aware route planning.
 
 ### Lost Robot Challenge — one star frame + one lunar frame
 
 A lunar robot wakes up with no GNSS. It gets one synthetic star-camera frame
-and one nadir lunar camera frame, then recovers attitude through the C++
-star-tracker app and position through the Tycho terminal TRN fixture. The
-result is a single mission-control card: star-camera lock, lunar camera view,
-LRO/LOLA map lock, and final localization telemetry.
+and one nadir lunar camera frame, then recovers attitude and position through
+the C++ navigation state demo plus the Tycho terminal TRN fixture. The result
+is a single mission-control card: star-camera lock, lunar camera view,
+LRO/LOLA map lock, and final navigation telemetry.
 
 ![Lost Robot Challenge mission card: one star frame and one lunar frame localize a GNSS-denied lunar robot over Tycho](docs/figures/lost_robot_challenge.png)
 
@@ -64,6 +88,55 @@ cmake --build build --parallel
 python3 scripts/lost_robot_challenge.py \
   --output docs/figures/lost_robot_challenge.png
 ```
+
+### Navigation replay — LOST → DEGRADED → OK
+
+The navigation replay shows the state machine becoming useful: the robot starts with no locks,
+gets a star-camera attitude lock, then reaches full navigation lock once TRN provides position. The
+Tycho map overlays the estimated position and the conservative TRN sigma circle; the replay also
+marks the dominant uncertainty source as map resolution.
+
+![Navigation replay demo: LOST to DEGRADED to OK with star-camera lock, TRN map lock, sigma circle, and map-resolution-limited uncertainty](docs/figures/navigation_replay_demo.gif)
+
+```bash
+python3 scripts/render_navigation_replay_demo.py \
+  --output docs/figures/navigation_replay_demo.gif
+```
+
+### Hazard-aware lunar navigation
+
+This guidance demo turns the Tycho terminal TRN fixture into a local cost map:
+dark/shadowed terrain and sharp image gradients become hazard cost, A* plans a
+route around the high-cost regions, and the rover follows the route while the
+navigation status moves through lost, attitude-only, TRN-locked, relocalizing,
+and arrived phases. The overlay keeps the mission-facing uncertainty visible
+with the same conservative TRN sigma used by `mission_navigation_demo`. The
+route planner itself is available as a reusable C++ API in
+`astro_navigation/navigation/hazard_guidance.hpp`; the renderer just builds an
+image-derived cost grid for the demo and can call the C++ `hazard_route_demo`
+CLI for the actual route plan. The CLI reports route length, straight-line
+length, detour ratio, mean/max route cost, and minimum clearance from blocked
+hazard cells.
+
+<video src="docs/figures/hazard_aware_navigation_demo.mp4" controls muted loop playsinline>
+  Hazard-aware lunar navigation demo.
+</video>
+
+![Hazard-aware lunar navigation demo fallback: red hazard regions, blue planned route, green rover progress, waypoint, relocalizing phase, and navigation telemetry over the Tycho terminal TRN map](docs/figures/hazard_aware_navigation_demo.gif)
+
+```bash
+cmake --build build --parallel
+python3 scripts/render_hazard_aware_navigation_demo.py \
+  --planner-app build/apps/hazard_route_demo \
+  --output docs/figures/hazard_aware_navigation_demo.gif
+ffmpeg -y -i docs/figures/hazard_aware_navigation_demo.gif \
+  -movflags +faststart -pix_fmt yuv420p \
+  -vf "fps=12,scale=trunc(iw/2)*2:trunc(ih/2)*2" \
+  docs/figures/hazard_aware_navigation_demo.mp4
+```
+
+<details>
+<summary>More demos and benchmark visuals</summary>
 
 ### TRN trajectory — frame-by-frame position recovery
 
@@ -263,6 +336,8 @@ python3 scripts/plot_trajectory_comparison.py \
   --output outputs/trajectory_sift_demo.png
 ```
 
+</details>
+
 ## Headline Results
 
 Numbers below are the current best on the corresponding benchmark. Full per-iteration history is in
@@ -293,7 +368,7 @@ Dependencies: CMake 3.20+, C++20 compiler, OpenCV 4 (`features2d`, `calib3d`, `i
 Eigen3.
 
 ```bash
-cd astro_localization
+cd astro_navigation
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
@@ -367,7 +442,7 @@ checksum.
 - [`docs/experiments.md`](docs/experiments.md) — full experiment log: ORB vs SIFT, essential vs PnP,
   CLAHE, every HYG pair-index density iteration.
 - [`docs/decisions.md`](docs/decisions.md) — design decisions and rationale.
-- [`docs/interfaces.md`](docs/interfaces.md) — CSV/binary interface contracts.
+- [`docs/interfaces.md`](docs/interfaces.md) — CSV, JSON, and binary interface contracts.
 - [`PLAN.md`](PLAN.md) — current and upcoming work.
 
 ## Contributing
@@ -378,10 +453,10 @@ development loop and good first contribution areas.
 
 ## Roadmap
 
-Star tracker catalog adapters; star tracker + visual TRN fusion; stereo VO with metric scale and
-PnP; crater descriptor matching against orbital maps; visual-inertial fusion; LiDAR scan matching;
-factor graph optimization (GTSAM/Ceres); orbital localization with star tracker fusion; ROS 2
-integration; repeatable simulation benchmarks.
+Navigation state health; star tracker catalog adapters; star tracker + visual TRN fusion; stereo VO
+with metric scale and PnP; crater descriptor matching against orbital maps; visual-inertial fusion;
+LiDAR scan matching; factor graph optimization (GTSAM/Ceres); orbital navigation with star tracker
+fusion; ROS 2 integration; repeatable simulation benchmarks.
 
 ## References
 
