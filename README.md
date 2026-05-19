@@ -17,6 +17,8 @@ route biased toward stronger terrain-relative navigation confidence, detects a n
 segment, replans with the C++ `hazard_route_demo`, and tracks route-level navigation risk while it
 continues toward the waypoint.
 
+See the [demo gallery](docs/demo_gallery.md) for the full visual index.
+
 The project is intentionally space-native: **star tracker attitude**, **lost-in-space star
 identification** against public catalogs, **lunar visual odometry**, and **terrain-relative
 navigation on real LRO/LOLA data** — not generic Earth robotics VO with lunar branding. The
