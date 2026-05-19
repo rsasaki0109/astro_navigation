@@ -47,6 +47,24 @@ success,correspondences,rms_direction_error_rad,qx,qy,qz,qw,status
 
 ## Demo
 
+### Lost Robot Challenge — one star frame + one lunar frame
+
+A lunar robot wakes up with no GNSS. It gets one synthetic star-camera frame
+and one nadir lunar camera frame, then recovers attitude through the C++
+star-tracker app and position through the Tycho terminal TRN fixture. The
+result is a single mission-control card: star-camera lock, lunar camera view,
+LRO/LOLA map lock, and final localization telemetry.
+
+![Lost Robot Challenge mission card: one star frame and one lunar frame localize a GNSS-denied lunar robot over Tycho](docs/figures/lost_robot_challenge.png)
+
+Reproduce without external downloads:
+
+```bash
+cmake --build build --parallel
+python3 scripts/lost_robot_challenge.py \
+  --output docs/figures/lost_robot_challenge.png
+```
+
 ### TRN trajectory — frame-by-frame position recovery
 
 A 9-frame descent trajectory over Tycho central peak (38 → 30 km altitude,
