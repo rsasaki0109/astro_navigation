@@ -35,7 +35,8 @@
         "POSITION_ONLY",
         "VELOCITY_MISSING",
         "HIGH_ATTITUDE_UNCERTAINTY",
-        "HIGH_POSITION_UNCERTAINTY"
+        "HIGH_POSITION_UNCERTAINTY",
+        "ROUTE_RISK_HIGH"
       ]
     },
     "message": {

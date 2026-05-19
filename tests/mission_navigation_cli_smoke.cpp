@@ -95,13 +95,13 @@ int main(const int argc, char** argv) {
   const std::string csv_text = readText(csv_path);
 
   if (stdout_text.find("status,status_reason,attitude_lock,position_lock") == std::string::npos ||
-      stdout_text.find("OK,NONE,1,1,4,") == std::string::npos ||
+      stdout_text.find("DEGRADED,ROUTE_RISK_HIGH,1,1,4,") == std::string::npos ||
       stdout_text.find(",0.63,0.38,0.62,82,11,map,") == std::string::npos ||
       stdout_text.find(",82,11,map,") == std::string::npos) {
-    return fail("stdout CSV did not contain expected OK navigation row");
+    return fail("stdout CSV did not contain expected route-risk navigation row");
   }
-  if (json_text.find("\"status\": \"OK\"") == std::string::npos ||
-      json_text.find("\"status_reason\": \"NONE\"") == std::string::npos ||
+  if (json_text.find("\"status\": \"DEGRADED\"") == std::string::npos ||
+      json_text.find("\"status_reason\": \"ROUTE_RISK_HIGH\"") == std::string::npos ||
       json_text.find("\"position_frame_id\": \"map\"") == std::string::npos ||
       json_text.find("\"localizability_score\": 0.630000000") == std::string::npos ||
       json_text.find("\"route_trn_confidence\": 0.380000000") == std::string::npos ||
@@ -110,7 +110,7 @@ int main(const int argc, char** argv) {
     return fail("JSON output did not contain expected navigation fields");
   }
   if (csv_text.find("timestamp,status,status_reason,attitude_lock") == std::string::npos ||
-      csv_text.find(",OK,NONE,1,1,4,") == std::string::npos ||
+      csv_text.find(",DEGRADED,ROUTE_RISK_HIGH,1,1,4,") == std::string::npos ||
       csv_text.find(",0.630000000,0.380000000,0.620000000,") == std::string::npos) {
     return fail("CSV output did not contain expected navigation row");
   }
