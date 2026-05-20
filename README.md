@@ -135,6 +135,30 @@ ffmpeg -y -i docs/figures/hazard_aware_navigation_demo.gif \
   docs/figures/hazard_aware_navigation_demo.mp4
 ```
 
+### Dynamic hazard replanning
+
+This autopilot replay starts from the same Tycho hazard map, then injects a new blocked hazard on the
+active route. The rover marks the route invalid, replans from its current TRN position with
+`hazard_route_demo`, and locks a new path around the obstacle. The side panel tracks the replan count,
+old/new detour ratio, and new-route clearance.
+
+<video src="docs/figures/dynamic_hazard_replanning_demo.mp4" controls muted loop playsinline>
+  Dynamic hazard replanning demo.
+</video>
+
+![Dynamic hazard replanning demo fallback: a lunar rover invalidates an old route, replans around a new blocked hazard, and resumes toward the waypoint](docs/figures/dynamic_hazard_replanning_demo.gif)
+
+```bash
+cmake --build build --parallel
+python3 scripts/render_dynamic_hazard_replanning_demo.py \
+  --planner-app build/apps/hazard_route_demo \
+  --output docs/figures/dynamic_hazard_replanning_demo.gif
+ffmpeg -y -i docs/figures/dynamic_hazard_replanning_demo.gif \
+  -movflags +faststart -pix_fmt yuv420p \
+  -vf "fps=12,scale=trunc(iw/2)*2:trunc(ih/2)*2" \
+  docs/figures/dynamic_hazard_replanning_demo.mp4
+```
+
 <details>
 <summary>More demos and benchmark visuals</summary>
 
