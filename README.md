@@ -8,9 +8,7 @@
 GNSS-denied space navigation for lunar robots: star-tracker attitude, terrain-relative position
 locks, navigation health, and hazard-aware route planning.
 
-<video src="docs/figures/dynamic_hazard_replanning_demo.mp4" controls muted loop playsinline>
-  Dynamic hazard replanning demo.
-</video>
+[MP4 video](docs/figures/dynamic_hazard_replanning_demo.mp4)
 
 ![Dynamic hazard replanning demo fallback: a lunar rover invalidates an old route, replans around a new blocked hazard, and resumes toward the waypoint](docs/figures/dynamic_hazard_replanning_demo.gif)
 
@@ -30,7 +28,7 @@ alongside the C++ apps.
 | --- | --- |
 | Star tracker attitude | `build/apps/star_tracker_attitude` |
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState` |
-| Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures and TRN summaries |
+| Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence heatmap |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -142,9 +140,7 @@ CLI for the actual route plan. The CLI reports route length, straight-line
 length, detour ratio, mean/max route cost, and minimum clearance from blocked
 hazard cells.
 
-<video src="docs/figures/hazard_aware_navigation_demo.mp4" controls muted loop playsinline>
-  Hazard-aware lunar navigation demo.
-</video>
+[MP4 video](docs/figures/hazard_aware_navigation_demo.mp4)
 
 ![Hazard-aware lunar navigation demo fallback: red hazard regions, blue planned route, green rover progress, waypoint, relocalizing phase, and navigation telemetry over the Tycho terminal TRN map](docs/figures/hazard_aware_navigation_demo.gif)
 
@@ -166,9 +162,7 @@ active route. The rover marks the route invalid, replans from its current TRN po
 `hazard_route_demo`, and locks a new path around the obstacle. The side panel tracks the replan count,
 old/new detour ratio, and new-route clearance.
 
-<video src="docs/figures/dynamic_hazard_replanning_demo.mp4" controls muted loop playsinline>
-  Dynamic hazard replanning demo.
-</video>
+[MP4 video](docs/figures/dynamic_hazard_replanning_demo.mp4)
 
 ![Dynamic hazard replanning demo fallback: a lunar rover invalidates an old route, replans around a new blocked hazard, and resumes toward the waypoint](docs/figures/dynamic_hazard_replanning_demo.gif)
 
@@ -181,6 +175,22 @@ ffmpeg -y -i docs/figures/dynamic_hazard_replanning_demo.gif \
   -movflags +faststart -pix_fmt yuv420p \
   -vf "fps=12,scale=trunc(iw/2)*2:trunc(ih/2)*2" \
   docs/figures/dynamic_hazard_replanning_demo.mp4
+```
+
+### TRN confidence heatmap
+
+The hazard map asks where the rover should avoid driving. The TRN confidence
+heatmap asks a different navigation question: where is the terrain visually
+localizable enough for terrain-relative navigation to lock position? The
+renderer scores the Tycho ortho fixture from gradient energy, local texture
+richness, feature density, and illumination balance, then writes both a PNG
+overview and a JSON summary for downstream planning experiments.
+
+![TRN confidence heatmap over Tycho: blue regions have weak texture or poor lighting, while yellow and red regions have stronger terrain-relative navigation lock potential](docs/figures/trn_confidence_heatmap.png)
+
+```bash
+python3 scripts/render_trn_confidence_heatmap.py \
+  --output docs/figures/trn_confidence_heatmap.png
 ```
 
 <details>
