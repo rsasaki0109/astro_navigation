@@ -151,10 +151,8 @@ void applyNavigationRisk(NavState& state, const double localizability_score,
 
 void refreshStatus(NavState& state) {
   resetCovariance(state);
-  state.quality.localizability_score =
-      clampUnitOrDefault(state.quality.localizability_score, 1.0);
-  state.quality.route_trn_confidence =
-      clampUnitOrDefault(state.quality.route_trn_confidence, 1.0);
+  state.quality.localizability_score = clampUnitOrDefault(state.quality.localizability_score, 1.0);
+  state.quality.route_trn_confidence = clampUnitOrDefault(state.quality.route_trn_confidence, 1.0);
   state.quality.navigation_risk_score =
       1.0 - std::min(state.quality.localizability_score, state.quality.route_trn_confidence);
   state.status = classifyState(state);

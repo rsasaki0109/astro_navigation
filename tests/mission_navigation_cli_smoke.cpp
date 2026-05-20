@@ -76,13 +76,14 @@ int main(const int argc, char** argv) {
   const auto stdout_path = output_dir / "stdout.csv";
   writeStarFixture(catalog_path, observations_path);
 
-  const std::string command =
-      shellQuote(app_path) + " --catalog " + shellQuote(catalog_path) + " --observations " +
-      shellQuote(observations_path) + " --fx 1000 --fy 1000 --cx 512 --cy 512 --trn-summary " +
-      shellQuote(trn_summary_path) + " --localizability-score 0.63 --route-trn-confidence 0.38 "
-      "--output-json " +
-      shellQuote(json_path) + " --output-csv " + shellQuote(csv_path) + " > " +
-      shellQuote(stdout_path);
+  const std::string command = shellQuote(app_path) + " --catalog " + shellQuote(catalog_path) +
+                              " --observations " + shellQuote(observations_path) +
+                              " --fx 1000 --fy 1000 --cx 512 --cy 512 --trn-summary " +
+                              shellQuote(trn_summary_path) +
+                              " --localizability-score 0.63 --route-trn-confidence 0.38 "
+                              "--output-json " +
+                              shellQuote(json_path) + " --output-csv " + shellQuote(csv_path) +
+                              " > " + shellQuote(stdout_path);
 
   const int rc = std::system(command.c_str());
   if (rc != 0) {

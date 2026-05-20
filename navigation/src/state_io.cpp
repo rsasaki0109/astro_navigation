@@ -78,11 +78,11 @@ void writeNavStateCsv(const std::filesystem::path& output_path, const NavState& 
          << (state.quality.position_lock ? 1 : 0) << ',' << state.quality.attitude_correspondences
          << ',' << state.quality.attitude_sigma_rad << ',' << state.quality.position_sigma_m << ','
          << state.quality.localizability_score << ',' << state.quality.route_trn_confidence << ','
-         << state.quality.navigation_risk_score << ','
-         << state.position_frame_id << ',' << state.position.x() << ',' << state.position.y() << ','
-         << state.position.z() << ',' << state.q_body_reference.x() << ','
-         << state.q_body_reference.y() << ',' << state.q_body_reference.z() << ','
-         << state.q_body_reference.w() << ',' << state.message << '\n';
+         << state.quality.navigation_risk_score << ',' << state.position_frame_id << ','
+         << state.position.x() << ',' << state.position.y() << ',' << state.position.z() << ','
+         << state.q_body_reference.x() << ',' << state.q_body_reference.y() << ','
+         << state.q_body_reference.z() << ',' << state.q_body_reference.w() << ',' << state.message
+         << '\n';
 }
 
 }  // namespace astro::navigation

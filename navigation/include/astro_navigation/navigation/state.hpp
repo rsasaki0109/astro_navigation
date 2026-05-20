@@ -62,8 +62,7 @@ struct NavState {
 void applyPositionLock(NavState& state, const Eigen::Vector3d& position,
                        const std::string& position_frame_id, double position_sigma_m);
 
-void applyNavigationRisk(NavState& state, double localizability_score,
-                         double route_trn_confidence);
+void applyNavigationRisk(NavState& state, double localizability_score, double route_trn_confidence);
 
 void refreshStatus(NavState& state);
 

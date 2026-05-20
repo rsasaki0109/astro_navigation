@@ -153,9 +153,9 @@ int main(const int argc, char** argv) {
               << (state.quality.attitude_lock ? 1 : 0) << ','
               << (state.quality.position_lock ? 1 : 0) << ','
               << state.quality.attitude_correspondences << ',' << state.quality.attitude_sigma_rad
-              << ',' << state.quality.position_sigma_m << ','
-              << state.quality.localizability_score << ',' << state.quality.route_trn_confidence
-              << ',' << state.quality.navigation_risk_score << ',' << result.trn_matches << ','
+              << ',' << state.quality.position_sigma_m << ',' << state.quality.localizability_score
+              << ',' << state.quality.route_trn_confidence << ','
+              << state.quality.navigation_risk_score << ',' << result.trn_matches << ','
               << result.trn_inliers << ',' << state.position_frame_id << ',' << state.position.x()
               << ',' << state.position.y() << ',' << state.position.z() << ','
               << state.q_body_reference.x() << ',' << state.q_body_reference.y() << ','
