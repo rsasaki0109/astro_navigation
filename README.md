@@ -28,7 +28,7 @@ alongside the C++ apps.
 | --- | --- |
 | Star tracker attitude | `build/apps/star_tracker_attitude` |
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState` |
-| Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence heatmap |
+| Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -191,6 +191,22 @@ overview and a JSON summary for downstream planning experiments.
 ```bash
 python3 scripts/render_trn_confidence_heatmap.py \
   --output docs/figures/trn_confidence_heatmap.png
+```
+
+### Localizability-aware routing
+
+The confidence map can also shape route planning. This demo compares a
+hazard-only route against a route that keeps the same blocked terrain but adds
+a cost penalty for visually weak TRN regions. The result is a slightly longer
+route with a higher average TRN confidence and fewer low-confidence segments.
+
+![Localizability-aware route over Tycho: gray shows the hazard-only route, green shows the route biased toward stronger terrain-relative navigation confidence, and red marks blocked hazard regions](docs/figures/localizability_aware_route.png)
+
+```bash
+cmake --build build --parallel
+python3 scripts/render_localizability_aware_route.py \
+  --planner-app build/apps/hazard_route_demo \
+  --output docs/figures/localizability_aware_route.png
 ```
 
 <details>
