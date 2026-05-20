@@ -93,7 +93,7 @@ Required top-level fields:
 - `position_m`: `[x, y, z]`
 - `velocity_mps`: `[vx, vy, vz]`
 - `q_body_reference_xyzw`: quaternion `[x, y, z, w]`
-- `quality`: lock flags, sigma values, and correspondence counts
+- `quality`: lock flags, sigma values, TRN route confidence, risk score, and correspondence counts
 - `covariance_6x6`: pose covariance ordered as `x, y, z, roll, pitch, yaw`
 
 For TRN-derived position locks, `position_sigma_m` is a truth-free conservative estimate. It is
@@ -106,6 +106,10 @@ currently the maximum of:
 The Tycho terminal fixture has terms `143.956 m`, `6.911 m`, and `75.179 m`, so the navigation
 sigma is `143.956 m`. The fixture's `position_error_m` remains an evaluation metric and is not used
 as the navigation sigma.
+
+`localizability_score` and `route_trn_confidence` are unitless `[0, 1]` confidence values. The current
+mission CLI accepts them as explicit inputs from a route planner or map evaluator and reports
+`navigation_risk_score = 1 - min(localizability_score, route_trn_confidence)`.
 
 Example:
 
@@ -126,6 +130,9 @@ Example:
     "velocity_lock": false,
     "attitude_sigma_rad": 0.00025164,
     "position_sigma_m": 143.956140950,
+    "localizability_score": 0.63,
+    "route_trn_confidence": 0.38,
+    "navigation_risk_score": 0.62,
     "attitude_correspondences": 30
   },
   "covariance_6x6": [
@@ -142,7 +149,7 @@ Example:
 `mission_navigation_demo --output-csv nav_state.csv` writes one flat row:
 
 ```text
-timestamp,status,status_reason,attitude_lock,position_lock,attitude_correspondences,attitude_sigma_rad,position_sigma_m,frame,x,y,z,qx,qy,qz,qw,message
+timestamp,status,status_reason,attitude_lock,position_lock,attitude_correspondences,attitude_sigma_rad,position_sigma_m,localizability_score,route_trn_confidence,navigation_risk_score,frame,x,y,z,qx,qy,qz,qw,message
 ```
 
 ## Hazard-Aware Guidance API

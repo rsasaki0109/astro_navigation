@@ -44,6 +44,9 @@ void writeNavStateJson(const std::filesystem::path& output_path, const NavState&
   output << "    \"velocity_lock\": " << (state.quality.velocity_lock ? "true" : "false") << ",\n";
   output << "    \"attitude_sigma_rad\": " << state.quality.attitude_sigma_rad << ",\n";
   output << "    \"position_sigma_m\": " << state.quality.position_sigma_m << ",\n";
+  output << "    \"localizability_score\": " << state.quality.localizability_score << ",\n";
+  output << "    \"route_trn_confidence\": " << state.quality.route_trn_confidence << ",\n";
+  output << "    \"navigation_risk_score\": " << state.quality.navigation_risk_score << ",\n";
   output << "    \"attitude_correspondences\": " << state.quality.attitude_correspondences << "\n";
   output << "  },\n";
   output << "  \"covariance_6x6\": [\n";
@@ -68,11 +71,14 @@ void writeNavStateJson(const std::filesystem::path& output_path, const NavState&
 void writeNavStateCsv(const std::filesystem::path& output_path, const NavState& state) {
   std::ofstream output = openOutput(output_path);
   output << "timestamp,status,status_reason,attitude_lock,position_lock,attitude_correspondences,"
-            "attitude_sigma_rad,position_sigma_m,frame,x,y,z,qx,qy,qz,qw,message\n";
+            "attitude_sigma_rad,position_sigma_m,localizability_score,route_trn_confidence,"
+            "navigation_risk_score,frame,x,y,z,qx,qy,qz,qw,message\n";
   output << state.timestamp << ',' << toString(state.status) << ',' << toString(state.status_reason)
          << ',' << (state.quality.attitude_lock ? 1 : 0) << ','
          << (state.quality.position_lock ? 1 : 0) << ',' << state.quality.attitude_correspondences
          << ',' << state.quality.attitude_sigma_rad << ',' << state.quality.position_sigma_m << ','
+         << state.quality.localizability_score << ',' << state.quality.route_trn_confidence << ','
+         << state.quality.navigation_risk_score << ','
          << state.position_frame_id << ',' << state.position.x() << ',' << state.position.y() << ','
          << state.position.z() << ',' << state.q_body_reference.x() << ','
          << state.q_body_reference.y() << ',' << state.q_body_reference.z() << ','

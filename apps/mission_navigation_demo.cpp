@@ -24,6 +24,8 @@ struct Args {
   std::filesystem::path trn_summary;
   std::filesystem::path output_json;
   std::filesystem::path output_csv;
+  std::optional<double> localizability_score;
+  std::optional<double> route_trn_confidence;
 };
 
 void printUsage() {
@@ -31,6 +33,7 @@ void printUsage() {
                "--fx <fx> --fy <fy> --cx <cx> --cy <cy> "
                "[--timestamp <sec>] [--position-x <m> --position-y <m> --position-z <m>] "
                "[--position-sigma-m <m>] [--position-frame <name>] [--trn-summary summary.json] "
+               "[--localizability-score <0..1>] [--route-trn-confidence <0..1>] "
                "[--output-json nav.json] [--output-csv nav.csv]\n";
 }
 
@@ -84,6 +87,10 @@ Args parseArgs(const int argc, char** argv) {
       args.output_json = requireValue(key);
     } else if (key == "--output-csv") {
       args.output_csv = requireValue(key);
+    } else if (key == "--localizability-score") {
+      args.localizability_score = parseDouble(requireValue(key), key);
+    } else if (key == "--route-trn-confidence") {
+      args.route_trn_confidence = parseDouble(requireValue(key), key);
     } else if (key == "--help" || key == "-h") {
       printUsage();
       std::exit(EXIT_SUCCESS);
@@ -124,6 +131,8 @@ int main(const int argc, char** argv) {
     input.timestamp = args.timestamp;
     input.position_frame_id = args.position_frame_id;
     input.position_sigma_override_m = args.position_sigma_m;
+    input.localizability_score = args.localizability_score;
+    input.route_trn_confidence = args.route_trn_confidence;
     if (!args.trn_summary.empty()) {
       input.trn_summary_path = args.trn_summary.string();
     } else if (args.position_x && args.position_y && args.position_z) {
@@ -137,13 +146,16 @@ int main(const int argc, char** argv) {
 
     std::cout
         << "status,status_reason,attitude_lock,position_lock,correspondences,attitude_sigma_rad,"
-           "position_sigma_m,trn_matches,trn_inliers,frame,x,y,z,qx,qy,qz,qw,message\n";
+           "position_sigma_m,localizability_score,route_trn_confidence,navigation_risk_score,"
+           "trn_matches,trn_inliers,frame,x,y,z,qx,qy,qz,qw,message\n";
     std::cout << astro::navigation::toString(state.status) << ','
               << astro::navigation::toString(state.status_reason) << ','
               << (state.quality.attitude_lock ? 1 : 0) << ','
               << (state.quality.position_lock ? 1 : 0) << ','
               << state.quality.attitude_correspondences << ',' << state.quality.attitude_sigma_rad
-              << ',' << state.quality.position_sigma_m << ',' << result.trn_matches << ','
+              << ',' << state.quality.position_sigma_m << ','
+              << state.quality.localizability_score << ',' << state.quality.route_trn_confidence
+              << ',' << state.quality.navigation_risk_score << ',' << result.trn_matches << ','
               << result.trn_inliers << ',' << state.position_frame_id << ',' << state.position.x()
               << ',' << state.position.y() << ',' << state.position.z() << ','
               << state.q_body_reference.x() << ',' << state.q_body_reference.y() << ','

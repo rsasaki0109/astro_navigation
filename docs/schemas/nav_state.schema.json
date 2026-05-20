@@ -73,6 +73,9 @@
         "velocity_lock",
         "attitude_sigma_rad",
         "position_sigma_m",
+        "localizability_score",
+        "route_trn_confidence",
+        "navigation_risk_score",
         "attitude_correspondences"
       ],
       "properties": {
@@ -92,6 +95,21 @@
         "position_sigma_m": {
           "type": "number",
           "minimum": 0.0
+        },
+        "localizability_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "route_trn_confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "navigation_risk_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
         },
         "attitude_correspondences": {
           "type": "integer",

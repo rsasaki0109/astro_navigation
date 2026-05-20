@@ -17,6 +17,13 @@ double squaredOrFallback(const double value, const double fallback) {
   return value * value;
 }
 
+double clampUnitOrDefault(const double value, const double fallback) {
+  if (!std::isfinite(value)) {
+    return fallback;
+  }
+  return std::clamp(value, 0.0, 1.0);
+}
+
 void resetCovariance(NavState& state) {
   state.covariance.setZero();
   const double position_variance =
@@ -132,8 +139,24 @@ void applyPositionLock(NavState& state, const Eigen::Vector3d& position,
   refreshStatus(state);
 }
 
+void applyNavigationRisk(NavState& state, const double localizability_score,
+                         const double route_trn_confidence) {
+  state.quality.localizability_score =
+      clampUnitOrDefault(localizability_score, state.quality.localizability_score);
+  state.quality.route_trn_confidence =
+      clampUnitOrDefault(route_trn_confidence, state.quality.route_trn_confidence);
+  state.quality.navigation_risk_score =
+      1.0 - std::min(state.quality.localizability_score, state.quality.route_trn_confidence);
+}
+
 void refreshStatus(NavState& state) {
   resetCovariance(state);
+  state.quality.localizability_score =
+      clampUnitOrDefault(state.quality.localizability_score, 1.0);
+  state.quality.route_trn_confidence =
+      clampUnitOrDefault(state.quality.route_trn_confidence, 1.0);
+  state.quality.navigation_risk_score =
+      1.0 - std::min(state.quality.localizability_score, state.quality.route_trn_confidence);
   state.status = classifyState(state);
   state.status_reason = classifyReason(state);
   if (state.status == NavStatus::kOk) {

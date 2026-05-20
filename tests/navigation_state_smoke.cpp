@@ -94,6 +94,7 @@ int main(const int argc, char** argv) {
   }
 
   astro::navigation::applyPositionLock(state, trn_lock.position, "map", trn_lock.sigma_m);
+  astro::navigation::applyNavigationRisk(state, 0.63, 0.38);
   if (state.status != astro::navigation::NavStatus::kOk) {
     return fail("attitude + TRN position should be OK");
   }
@@ -102,6 +103,9 @@ int main(const int argc, char** argv) {
   }
   if (!near(state.covariance(0, 0), trn_lock.sigma_m * trn_lock.sigma_m, 1.0e-6)) {
     return fail("position covariance should use squared TRN sigma");
+  }
+  if (!near(state.quality.navigation_risk_score, 0.62, 1.0e-12)) {
+    return fail("navigation risk should be derived from localizability and route confidence");
   }
 
   std::filesystem::create_directories(output_dir);
@@ -114,11 +118,15 @@ int main(const int argc, char** argv) {
   const std::string csv = readText(csv_path);
   if (json.find("\"status\": \"OK\"") == std::string::npos ||
       json.find("\"status_reason\": \"NONE\"") == std::string::npos ||
-      json.find("\"position_sigma_m\": 143.956140950") == std::string::npos) {
+      json.find("\"position_sigma_m\": 143.956140950") == std::string::npos ||
+      json.find("\"localizability_score\": 0.630000000") == std::string::npos ||
+      json.find("\"route_trn_confidence\": 0.380000000") == std::string::npos ||
+      json.find("\"navigation_risk_score\": 0.620000000") == std::string::npos) {
     return fail("JSON output is missing expected navigation fields");
   }
   if (csv.find("timestamp,status,status_reason,attitude_lock") == std::string::npos ||
-      csv.find(",OK,NONE,1,1,30,") == std::string::npos) {
+      csv.find(",OK,NONE,1,1,30,") == std::string::npos ||
+      csv.find(",0.630000000,0.380000000,0.620000000,") == std::string::npos) {
     return fail("CSV output is missing expected navigation fields");
   }
 
@@ -150,6 +158,8 @@ int main(const int argc, char** argv) {
   pipeline_input.intrinsics.cx = 512.0;
   pipeline_input.intrinsics.cy = 512.0;
   pipeline_input.trn_summary_path = trn_summary_path.string();
+  pipeline_input.localizability_score = 0.72;
+  pipeline_input.route_trn_confidence = 0.55;
 
   const auto pipeline_result = astro::navigation::runMissionNavigation(pipeline_input);
   if (pipeline_result.state.status != astro::navigation::NavStatus::kOk) {
@@ -167,6 +177,9 @@ int main(const int argc, char** argv) {
   }
   if (pipeline_result.state.quality.attitude_correspondences != 4) {
     return fail("pipeline did not preserve star tracker correspondence count");
+  }
+  if (!near(pipeline_result.state.quality.navigation_risk_score, 0.45, 1.0e-12)) {
+    return fail("pipeline did not preserve route navigation risk");
   }
 
   return 0;
