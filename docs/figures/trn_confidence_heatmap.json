@@ -1,0 +1,16 @@
+{
+  "output": "docs/figures/trn_confidence_heatmap.png",
+  "source_ortho": "/media/autoware/aa/ai_coding_ws/astro_navigation/docs/figures/trn_lro_tycho_terminal/ortho.png",
+  "grid_size": 220,
+  "feature_detector": "SIFT",
+  "feature_count": 782,
+  "rover_pixel": [
+    640,
+    640
+  ],
+  "rover_confidence": 0.8801334500312805,
+  "mean_confidence": 0.41704460978507996,
+  "high_confidence_fraction": 0.07929752066115703,
+  "low_confidence_fraction": 0.3203719008264463,
+  "model": "0.34*gradient + 0.28*texture + 0.30*feature_density + 0.18*illumination_balance"
+}
