@@ -1,0 +1,70 @@
+{
+  "output": "docs/figures/confidence_aware_replanning_demo.gif",
+  "planner": "cpp_hazard_route_demo",
+  "feature_detector": "SIFT",
+  "feature_count": 482,
+  "localizability_weight": 7.0,
+  "localizability_score": 0.632820725440979,
+  "route_trn_confidence": 0.37815845012664795,
+  "navigation_risk_score": 0.621841549873352,
+  "replan_count": 1,
+  "replan_frame": 24,
+  "start_pixel": [
+    640,
+    640
+  ],
+  "waypoint_pixel": [
+    900,
+    430
+  ],
+  "waypoint_xy_m": [
+    64780.2634275095,
+    30950.57030425454
+  ],
+  "blocked_route_cell": [
+    120,
+    68
+  ],
+  "blocked_route_pixel": [
+    907,
+    516
+  ],
+  "blocked_cells": 253,
+  "old_route_points": 48,
+  "new_route_points": 43,
+  "final_route_points": 63,
+  "old_route_metrics": {
+    "route_length_m": 33553.1961205199,
+    "straight_line_length_m": 31061.9656789932,
+    "detour_ratio": 1.08020195718687,
+    "mean_cost": 6.59203133458333,
+    "max_cost": 8.9077034,
+    "min_clearance_cells": 1,
+    "min_clearance_m": 541.952530635374
+  },
+  "new_route_metrics": {
+    "route_length_m": 27251.6880537175,
+    "straight_line_length_m": 23808.9313649694,
+    "detour_ratio": 1.14459937894623,
+    "mean_cost": 7.23880940813953,
+    "max_cost": 8.73833942,
+    "min_clearance_cells": 1,
+    "min_clearance_m": 541.952530635374
+  },
+  "final_route_confidence": {
+    "mean_trn_confidence": 0.37815845012664795,
+    "min_trn_confidence": 0.0023624037858098745,
+    "p10_trn_confidence": 0.02977590262889862,
+    "low_confidence_fraction": 0.5079365079365079,
+    "route_length_m": 44699.8638611121,
+    "detour_ratio": 1.439054576360634
+  },
+  "blocked_cost": 50.0,
+  "states": [
+    "GUIDANCE ACTIVE",
+    "ROUTE INVALID",
+    "REPLANNING",
+    "NEW ROUTE LOCK",
+    "ARRIVED"
+  ]
+}

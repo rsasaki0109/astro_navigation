@@ -232,6 +232,9 @@ The resulting summary now includes a `navigation` section:
       "velocity_lock": false,
       "attitude_sigma_rad": 0.000141226,
       "position_sigma_m": 143.956140950,
+      "localizability_score": 0.630000000,
+      "route_trn_confidence": 0.380000000,
+      "navigation_risk_score": 0.620000000,
       "attitude_correspondences": 30
     }
   }
