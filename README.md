@@ -10,7 +10,7 @@ locks, navigation health, and hazard-aware route planning.
 
 [MP4 video](docs/figures/confidence_aware_replanning_demo.mp4)
 
-![Confidence-aware replanning demo fallback: a lunar rover follows a TRN-confidence-aware route, detects a new blocked hazard, replans through more localizable terrain, and tracks navigation risk](docs/figures/confidence_aware_replanning_demo.gif)
+![Confidence-aware replanning preview: a lunar rover follows a TRN-confidence-aware route, detects a new blocked hazard, replans through more localizable terrain, and tracks navigation risk](docs/figures/confidence_aware_replanning_preview.png)
 
 The headline demo is a lunar autopilot replay: a rover gets a TRN position lock over Tycho, follows a
 route biased toward stronger terrain-relative navigation confidence, detects a newly blocked
@@ -88,7 +88,7 @@ Expected shape:
 
 ```text
 status,status_reason,attitude_lock,position_lock,correspondences,attitude_sigma_rad,position_sigma_m,localizability_score,route_trn_confidence,navigation_risk_score,trn_matches,trn_inliers,frame,x,y,z,qx,qy,qz,qw,message
-OK,NONE,1,1,...
+DEGRADED,ROUTE_RISK_HIGH,1,1,...
 ```
 
 ## Featured Demos
@@ -190,7 +190,9 @@ derived navigation risk score.
 
 [MP4 video](docs/figures/confidence_aware_replanning_demo.mp4)
 
-![Confidence-aware replanning demo fallback: heatmap confidence, blocked hazard, replanned localizable route, and route-level navigation risk over Tycho](docs/figures/confidence_aware_replanning_demo.gif)
+[GIF animation](docs/figures/confidence_aware_replanning_demo.gif)
+
+![Confidence-aware replanning preview: heatmap confidence, blocked hazard, replanned localizable route, and route-level navigation risk over Tycho](docs/figures/confidence_aware_replanning_preview.png)
 
 ```bash
 cmake --build build --parallel

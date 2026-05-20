@@ -9,6 +9,7 @@ namespace {
 
 constexpr double kDefaultPositionVariance = 1.0e12;
 constexpr double kDefaultAttitudeVariance = 1.0e6;
+constexpr double kHighNavigationRiskThreshold = 0.60;
 
 double squaredOrFallback(const double value, const double fallback) {
   if (!std::isfinite(value) || value <= 0.0) {
@@ -22,6 +23,10 @@ double clampUnitOrDefault(const double value, const double fallback) {
     return fallback;
   }
   return std::clamp(value, 0.0, 1.0);
+}
+
+bool routeRiskHigh(const NavState& state) {
+  return state.quality.navigation_risk_score >= kHighNavigationRiskThreshold;
 }
 
 void resetCovariance(NavState& state) {
@@ -68,6 +73,8 @@ std::string toString(const NavStatusReason reason) {
       return "HIGH_ATTITUDE_UNCERTAINTY";
     case NavStatusReason::kHighPositionUncertainty:
       return "HIGH_POSITION_UNCERTAINTY";
+    case NavStatusReason::kRouteRiskHigh:
+      return "ROUTE_RISK_HIGH";
   }
   return "NONE";
 }
@@ -77,7 +84,7 @@ NavStatus classifyState(const NavState& state) {
   if (!has_any_lock) {
     return NavStatus::kLost;
   }
-  if (state.quality.attitude_lock && state.quality.position_lock) {
+  if (state.quality.attitude_lock && state.quality.position_lock && !routeRiskHigh(state)) {
     return NavStatus::kOk;
   }
   return NavStatus::kDegraded;
@@ -92,6 +99,9 @@ NavStatusReason classifyReason(const NavState& state) {
   }
   if (!state.quality.attitude_lock && state.quality.position_lock) {
     return NavStatusReason::kPositionOnly;
+  }
+  if (routeRiskHigh(state)) {
+    return NavStatusReason::kRouteRiskHigh;
   }
   return NavStatusReason::kNone;
 }
@@ -147,6 +157,7 @@ void applyNavigationRisk(NavState& state, const double localizability_score,
       clampUnitOrDefault(route_trn_confidence, state.quality.route_trn_confidence);
   state.quality.navigation_risk_score =
       1.0 - std::min(state.quality.localizability_score, state.quality.route_trn_confidence);
+  refreshStatus(state);
 }
 
 void refreshStatus(NavState& state) {
@@ -159,6 +170,8 @@ void refreshStatus(NavState& state) {
   state.status_reason = classifyReason(state);
   if (state.status == NavStatus::kOk) {
     state.message = "navigation lock";
+  } else if (state.status_reason == NavStatusReason::kRouteRiskHigh) {
+    state.message = "route risk high";
   } else if (state.status == NavStatus::kDegraded && state.message.empty()) {
     state.message = "partial navigation lock";
   } else if (state.status == NavStatus::kLost && state.message.empty()) {
