@@ -18,7 +18,8 @@ enum class NavStatusReason {
   kPositionOnly,
   kVelocityMissing,
   kHighAttitudeUncertainty,
-  kHighPositionUncertainty
+  kHighPositionUncertainty,
+  kRouteRiskHigh
 };
 
 struct NavQuality {

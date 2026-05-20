@@ -55,8 +55,8 @@ Main types:
 
 - `NavStatus`: `UNKNOWN`, `OK`, `DEGRADED`, `LOST`, `RELOCALIZING`
 - `NavStatusReason`: `NONE`, `NO_LOCKS`, `ATTITUDE_ONLY`, `POSITION_ONLY`, `VELOCITY_MISSING`,
-  `HIGH_ATTITUDE_UNCERTAINTY`, `HIGH_POSITION_UNCERTAINTY`
-- `NavQuality`: lock flags, sigma values, correspondence counts
+  `HIGH_ATTITUDE_UNCERTAINTY`, `HIGH_POSITION_UNCERTAINTY`, `ROUTE_RISK_HIGH`
+- `NavQuality`: lock flags, sigma values, route confidence, risk score, correspondence counts
 - `NavState`: timestamp, frame IDs, position, velocity, quaternion, 6x6 covariance, quality, status,
   status reason, message
 - `PositionLockMeasurement`: TRN position, estimated sigma, evaluation error, match count, inlier
@@ -71,6 +71,7 @@ Current status logic:
 - attitude only -> `DEGRADED`, reason `ATTITUDE_ONLY`
 - position only -> `DEGRADED`, reason `POSITION_ONLY`
 - attitude + position -> `OK`, reason `NONE`
+- attitude + position + `navigation_risk_score >= 0.60` -> `DEGRADED`, reason `ROUTE_RISK_HIGH`
 
 ## Hazard-Aware Guidance
 
@@ -221,9 +222,9 @@ The resulting summary now includes a `navigation` section:
 ```json
 {
   "navigation": {
-    "status": "OK",
-    "status_reason": "NONE",
-    "message": "navigation lock",
+    "status": "DEGRADED",
+    "status_reason": "ROUTE_RISK_HIGH",
+    "message": "route risk high",
     "position_m": [46069.113087615, 46097.730733616, 30000.596809296],
     "position_frame_id": "map",
     "quality": {

@@ -86,7 +86,7 @@ Required top-level fields:
 - `timestamp`: seconds
 - `status`: one of `UNKNOWN`, `OK`, `DEGRADED`, `LOST`, `RELOCALIZING`
 - `status_reason`: one of `NONE`, `NO_LOCKS`, `ATTITUDE_ONLY`, `POSITION_ONLY`, `VELOCITY_MISSING`,
-  `HIGH_ATTITUDE_UNCERTAINTY`, `HIGH_POSITION_UNCERTAINTY`
+  `HIGH_ATTITUDE_UNCERTAINTY`, `HIGH_POSITION_UNCERTAINTY`, `ROUTE_RISK_HIGH`
 - `message`: human-readable status message
 - `position_frame_id`: frame for `position_m` and `velocity_mps`
 - `attitude_reference_frame_id`: frame for `q_body_reference_xyzw`
@@ -109,16 +109,17 @@ as the navigation sigma.
 
 `localizability_score` and `route_trn_confidence` are unitless `[0, 1]` confidence values. The current
 mission CLI accepts them as explicit inputs from a route planner or map evaluator and reports
-`navigation_risk_score = 1 - min(localizability_score, route_trn_confidence)`.
+`navigation_risk_score = 1 - min(localizability_score, route_trn_confidence)`. A fully locked state
+with `navigation_risk_score >= 0.60` is reported as `DEGRADED / ROUTE_RISK_HIGH`.
 
 Example:
 
 ```json
 {
   "timestamp": 0.0,
-  "status": "OK",
-  "status_reason": "NONE",
-  "message": "navigation lock",
+  "status": "DEGRADED",
+  "status_reason": "ROUTE_RISK_HIGH",
+  "message": "route risk high",
   "position_frame_id": "map",
   "attitude_reference_frame_id": "inertial",
   "position_m": [46069.113087615, 46097.730733616, 30000.596809296],

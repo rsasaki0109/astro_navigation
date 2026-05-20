@@ -244,6 +244,7 @@ def main() -> int:
     )
     route_trn_confidence = float(final_confidence["mean_trn_confidence"])
     risk_score = 1.0 - min(route_trn_confidence, float(confidence[start_grid.y, start_grid.x]))
+    locked_nav_status = "DEGRADED / ROUTE_RISK_HIGH" if risk_score >= 0.60 else "OK / ROUTE LOCK"
 
     old_path_pixels = [grid_to_pixel(point, ortho.shape, args.grid_size) for point in old_route]
     new_path_pixels = [grid_to_pixel(point, ortho.shape, args.grid_size) for point in new_route]
@@ -257,7 +258,7 @@ def main() -> int:
         distance_m = math.hypot(rover_pixel[0] - waypoint_pixel[0], rover_pixel[1] - waypoint_pixel[1]) * px_to_m
         if idx < replan_frame - 2:
             phase = "GUIDANCE ACTIVE"
-            nav_status = "OK / ROUTE LOCK"
+            nav_status = locked_nav_status
             visible_new_path: list[tuple[int, int]] = []
             active_hazard = np.zeros_like(dynamic_hazard)
             replan_count = 0
@@ -275,14 +276,14 @@ def main() -> int:
             replan_count = 1
         elif idx >= len(rover_pixels) - 4:
             phase = "ARRIVED"
-            nav_status = "OK / ROUTE LOCK"
+            nav_status = locked_nav_status
             visible_new_path = new_path_pixels
             active_hazard = dynamic_hazard
             replan_count = 1
             distance_m = 0.0
         else:
             phase = "NEW ROUTE LOCK"
-            nav_status = "OK / ROUTE LOCK"
+            nav_status = locked_nav_status
             visible_new_path = new_path_pixels
             active_hazard = dynamic_hazard
             replan_count = 1
