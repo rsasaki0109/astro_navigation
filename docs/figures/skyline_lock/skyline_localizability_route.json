@@ -1,0 +1,21 @@
+{
+  "scene": "lola:tycho",
+  "grid": 55,
+  "grid_step_m": 1965.4,
+  "loc_weight": 12.0,
+  "localizable_cell_fraction": 0.3025,
+  "shortest_route": {
+    "mean_localizability": 0.0476,
+    "min_localizability": 0.0018,
+    "low_loc_fraction": 0.6889,
+    "length_cells": 44.0,
+    "detour_ratio": 1.0
+  },
+  "localizability_aware_route": {
+    "mean_localizability": 0.0962,
+    "min_localizability": 0.0162,
+    "low_loc_fraction": 0.2222,
+    "length_cells": 46.49,
+    "detour_ratio": 1.0565
+  }
+}
