@@ -61,6 +61,21 @@ lock over Tycho with a conservative sigma circle.
 
 ## TRN And Localizability
 
+### Factor-graph fusion (star + VO + Skyline)
+
+The project's localization modalities fused into one pose graph: a star-tracker attitude factor, a
+drifting visual-odometry between-factor, and a Skyline position factor whose information is the real
+uniqueness margin. Over Tycho the fused estimate hugs ground truth with a tight covariance ellipse
+where the horizon locks uniquely (green) and coasts on VO with a growing ellipse where the fix aliases
+(orange) and is down-weighted — ~4× lower RMSE than VO-only (958 m vs 3.8 km), degrading gracefully
+rather than snapping to a wrong lock.
+
+- [MP4 video](figures/skyline_lock/factor_graph_fusion_demo.mp4)
+- [GIF animation](figures/skyline_lock/factor_graph_fusion_demo.gif)
+- [Static figure](figures/skyline_lock/factor_graph_fusion.png) · [JSON summary](figures/skyline_lock/factor_graph_fusion.json)
+
+![Factor-graph fusion](figures/skyline_lock/factor_graph_fusion_demo.gif)
+
 ### Skyline Lock
 
 A rover matches its observed horizon (elevation vs azimuth) against horizons predicted from real LOLA

@@ -33,6 +33,7 @@ alongside the C++ apps.
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin |
+| Confidence-weighted fusion | `scripts/factor_graph_fusion_demo.py`, star + VO + Skyline pose graph, margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -96,8 +97,41 @@ DEGRADED,ROUTE_RISK_HIGH,1,1,...
 
 ## Featured Demos
 
-The first-screen demos show the current navigation direction: horizon-based absolute localization,
-state estimation, terrain-relative position lock, and hazard-aware route planning.
+The first-screen demos show the current navigation direction: confidence-weighted sensor fusion,
+horizon-based absolute localization, state estimation, terrain-relative position lock, and
+hazard-aware route planning.
+
+### Factor-graph fusion — star + VO + Skyline, each trusted only as far as it earns
+
+The capstone: the project's localization modalities fused into one estimator that lets each carry
+the fix only as far as its own confidence justifies. A rover drives out of Tycho's distinctive
+interior into self-similar terrain, fusing a star-tracker attitude factor, a visual-odometry
+between-factor (locally good, globally drifting), and a Skyline position factor whose information is
+the *real* uniqueness margin from the demo below. Inside the crater the horizon fix is tight and the
+fused track hugs ground truth with a small covariance ellipse; out in the rotationally symmetric
+exterior the margin collapses, so the skyline fixes scatter to aliased positions and the graph
+**down-weights them automatically**, coasting on VO with a visibly growing ellipse instead of
+snapping to a wrong lock. The honest payoff: fused error stays bounded where the terrain is
+distinctive (~4× lower RMSE than VO-only over Tycho, 958 m vs 3.8 km) and degrades *gracefully*,
+not catastrophically, where it is not. Confidence is terrain-driven and reproducible from public
+LOLA data, never a hand-tuned schedule.
+
+[MP4 video](docs/figures/skyline_lock/factor_graph_fusion_demo.mp4)
+
+![Factor-graph fusion over Tycho: a rover drives radially out of the crater; the fused estimate tracks ground truth with a tight covariance ellipse over the distinctive interior where skyline fixes are unique (green), and coasts on visual odometry with a growing ellipse over the self-similar exterior where the fixes alias (orange) and are down-weighted; an error-vs-pose panel shows fused error staying bounded while VO-only drifts away](docs/figures/skyline_lock/factor_graph_fusion_demo.gif)
+
+```bash
+# Reuses the cached LOLA LDEM from the Skyline Lock demo (~33 MB on first run).
+python3 scripts/render_factor_graph_fusion_demo.py \
+  --output docs/figures/skyline_lock/factor_graph_fusion_demo.gif
+
+# Static summary figure + JSON metrics (synthetic, no download):
+python3 scripts/factor_graph_fusion_demo.py --source synth --terrain craters \
+  --trajectory radial --output outputs/factor_graph_fusion/synth.png
+# ...or the headline run on real terrain:
+python3 scripts/factor_graph_fusion_demo.py --source lola --target tycho \
+  --trajectory radial --output outputs/factor_graph_fusion/tycho.png
+```
 
 ### Skyline Lock — lost on the Moon from a single horizon
 
@@ -607,10 +641,12 @@ development loop and good first contribution areas.
 
 ## Roadmap
 
-Navigation state health; star tracker catalog adapters; star tracker + visual TRN fusion; stereo VO
-with metric scale and PnP; crater descriptor matching against orbital maps; visual-inertial fusion;
-LiDAR scan matching; factor graph optimization (GTSAM/Ceres); orbital navigation with star tracker
-fusion; ROS 2 integration; repeatable simulation benchmarks.
+Navigation state health; star tracker catalog adapters; a lightweight star + VO + Skyline pose-graph
+fusion landed (`scripts/factor_graph_fusion_demo.py`) — next: scale it to a full factor-graph backend
+(GTSAM/Ceres) with proper attitude states; stereo VO with metric scale and PnP; crater descriptor
+matching against orbital maps; visual-inertial fusion; LiDAR scan matching; curvature-correct horizon
+ranging; orbital navigation with star tracker fusion; ROS 2 integration; repeatable simulation
+benchmarks.
 
 ## References
 
