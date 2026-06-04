@@ -92,6 +92,22 @@ rather than snapping to a wrong lock.
 
 ![Factor-graph fusion](figures/skyline_lock/factor_graph_fusion_demo.gif)
 
+### Heading as a graph state (nonlinear SO(2) backend)
+
+The fusion above fixes attitude to the star tracker. This demo promotes heading to a graph state and
+solves a nonlinear SO(2) factor graph (self-contained Gauss-Newton, no GTSAM/Ceres). Across a
+mid-traverse star-tracker blackout the resumed fixes flow backward through the VO yaw-increment chain
+and recover heading from **5.4° → 0.3°** mean inside the gap (peak ~10° → 0.6°), snapping the
+dead-reckoned arc onto truth (RMSE 148 m → 113 m). When the blackout ends the traverse — no future
+anchor — the joint solve does no better than fixed-yaw (5.6° → 5.6°): the honest cliff. The animation
+replays the Gauss-Newton iterations straightening the arc as the heading error collapses.
+
+- [MP4 video](figures/skyline_lock/factor_graph_so2_demo.mp4)
+- [GIF animation](figures/skyline_lock/factor_graph_so2_demo.gif)
+- [Static figure](figures/skyline_lock/factor_graph_so2.png) · [JSON summary](figures/skyline_lock/factor_graph_so2.json)
+
+![Heading as a graph state](figures/skyline_lock/factor_graph_so2_demo.gif)
+
 ### Skyline Lock
 
 A rover matches its observed horizon (elevation vs azimuth) against horizons predicted from real LOLA

@@ -33,7 +33,7 @@ alongside the C++ apps.
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin; curvature-correct model in `scripts/skyline_curvature_demo.py` |
-| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), margin-driven information, per-pose covariance |
+| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -164,6 +164,42 @@ python3 scripts/factor_graph_fusion_demo.py --source synth --terrain craters \
 # ...or the headline run on real terrain:
 python3 scripts/factor_graph_fusion_demo.py --source lola --target tycho \
   --trajectory radial --output outputs/factor_graph_fusion/tycho.png
+```
+
+### Heading as a graph state — a nonlinear SO(2) factor graph, and the star-tracker blackout
+
+The factor-graph fusion above is *linear*: it fixes each pose's attitude to the star tracker and
+rotates VO into the world with it. That is exactly right — while the star tracker is healthy. This
+demo asks the honest follow-up: what happens across a star-tracker **blackout** (sun glare, limited
+sky, a dropped frame)? With attitude a fixed input, the estimator can only dead-reckon heading
+*forward* from the last good fix, and the VO heading bias makes that error ramp — several degrees off
+by the far side, every VO step then rotated into the wrong world direction. Promoting yaw to a graph
+state turns the estimator into a batch smoother over `(x, y, θ)`: VO *yaw-increment* factors chain
+the gap, so the fixes that resume **after** the blackout flow backward through that chain and correct
+the heading *during* it. The solver is a self-contained Gauss-Newton with an SO(2) retraction (angles
+add, then wrap) and analytic Jacobians — ~120 lines, no GTSAM/Ceres dependency, fully reproducible.
+
+The honest envelope, two scenes side by side:
+
+- **Mid-traverse blackout** (a lock resumes on the far side): heading recovers from **5.4° → 0.3°**
+  mean inside the gap (peak ~10° → 0.6°) and the dead-reckoned arc snaps back onto truth (RMSE
+  148 m → 113 m).
+- **End-of-traverse blackout** (no fix ever comes back): there is nothing to smooth backward from, so
+  the joint solve does **no better** than fixed-yaw (5.6° → 5.6°). Batch smoothing needs a future
+  anchor — the cliff. Same mechanism, opposite consequence, as in the curvature and four-factor demos.
+
+[MP4 video](docs/figures/skyline_lock/factor_graph_so2_demo.mp4)
+
+![SO(2) factor-graph demo: a mid-traverse star-tracker blackout is held fixed while the Gauss-Newton iterations replay. The optimizer starts from the Phase-5 fixed-yaw estimate whose trajectory bulges away from ground truth across the blackout because the dead-reckoned heading drifted ~10 degrees; iteration by iteration the resumed star and skyline fixes on the far side flow backward through the VO yaw-increment chain, the per-pose heading error collapses inside the shaded blackout band, and the estimated arc snaps onto the white ground-truth path](docs/figures/skyline_lock/factor_graph_so2_demo.gif)
+
+```bash
+# Watch the Gauss-Newton iterations straighten the blackout arc (synthetic, no download):
+python3 scripts/render_factor_graph_so2_demo.py --mp4 \
+  --output docs/figures/skyline_lock/factor_graph_so2_demo.gif
+
+# Static figure (mid vs end blackout) + JSON metrics:
+python3 scripts/factor_graph_so2_demo.py            # synth craters, rover-scale
+python3 scripts/factor_graph_so2_demo.py --source lola --target tycho   # real LOLA
 ```
 
 ### Skyline Lock — lost on the Moon from a single horizon
@@ -709,8 +745,10 @@ development loop and good first contribution areas.
 
 Navigation state health; star tracker catalog adapters; a star + VO + Skyline + TRN pose-graph fusion
 landed (`scripts/four_factor_fusion_demo.py`), with Skyline and TRN chosen as complementary absolute
-factors — next: scale it to a full factor-graph backend (GTSAM/Ceres) with proper SO(2)/SO(3)
-attitude states (the current solver is positions-only linear, attitude handled by the star prior);
+factors — a self-contained nonlinear factor-graph backend now carries heading as an SO(2) graph
+state (`scripts/factor_graph_so2_demo.py`, Gauss-Newton on the circle), recovering attitude across a
+star-tracker blackout where the linear positions-only solver could only dead-reckon it; next, extend
+the same solver to full SO(3) attitude and tighten the VO factor with metric scale;
 stereo VO with metric scale and PnP; crater descriptor matching against orbital maps; visual-inertial
 fusion; LiDAR scan matching; the curvature-correct horizon model landed
 (`scripts/skyline_curvature_demo.py`, `render_horizon(..., curvature_radius_m=...)`) — next, fold it
