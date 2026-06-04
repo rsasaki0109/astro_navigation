@@ -1,0 +1,73 @@
+{
+  "scene": "synth:craters",
+  "n_poses": 30,
+  "vo_scale_bias": 0.08,
+  "gyro_bias_deg": {
+    "pitch": 0.45,
+    "roll": -0.4,
+    "yaw": 0.6
+  },
+  "mid_traverse_blackout": {
+    "poses": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21
+    ],
+    "n_skyline_locks": 5,
+    "vo_scale_true": 0.9259,
+    "vo_scale_assumed": 1.0,
+    "vo_scale_joint": 0.9144,
+    "rmse_a_m": 157.9,
+    "rmse_b_m": 39.8,
+    "blackout_yaw_a_deg": 2.24,
+    "blackout_yaw_b_deg": 1.25,
+    "blackout_yaw_a_max_deg": 4.78,
+    "blackout_yaw_b_max_deg": 1.4,
+    "blackout_tilt_b_deg": 0.56,
+    "blackout_tilt_nograv_deg": 1.14,
+    "blackout_pos_a_m": 198.4,
+    "blackout_pos_b_m": 29.4
+  },
+  "end_traverse_blackout": {
+    "poses": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "n_skyline_locks": 5,
+    "vo_scale_true": 0.9259,
+    "vo_scale_assumed": 1.0,
+    "vo_scale_joint": 0.9296,
+    "rmse_a_m": 150.8,
+    "rmse_b_m": 57.4,
+    "blackout_yaw_a_deg": 3.72,
+    "blackout_yaw_b_deg": 3.79,
+    "blackout_yaw_a_max_deg": 6.48,
+    "blackout_yaw_b_max_deg": 6.54,
+    "blackout_tilt_b_deg": 0.48,
+    "blackout_tilt_nograv_deg": 2.86,
+    "blackout_pos_a_m": 225.3,
+    "blackout_pos_b_m": 83.4
+  },
+  "no_fix_scale_gauge": {
+    "vo_scale_true": 0.9259,
+    "vo_scale_joint": 1.0,
+    "rmse_a_m": 275.8,
+    "rmse_b_m": 276.8,
+    "note": "no absolute fix -> scale unobservable (similarity gauge freedom)"
+  }
+}
