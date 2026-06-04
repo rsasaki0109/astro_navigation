@@ -33,7 +33,7 @@ alongside the C++ apps.
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin |
-| Confidence-weighted fusion | `scripts/factor_graph_fusion_demo.py`, star + VO + Skyline pose graph, margin-driven information, per-pose covariance |
+| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -97,13 +97,46 @@ DEGRADED,ROUTE_RISK_HIGH,1,1,...
 
 ## Featured Demos
 
-The first-screen demos show the current navigation direction: confidence-weighted sensor fusion,
-horizon-based absolute localization, state estimation, terrain-relative position lock, and
-hazard-aware route planning.
+The first-screen demos show the current navigation direction: confidence-weighted sensor fusion
+with complementary modalities, horizon-based absolute localization, state estimation,
+terrain-relative position lock, and hazard-aware route planning.
+
+### Four-factor fusion — star + VO + Skyline + TRN cover each other's blind spots
+
+The capstone: all four localization modalities in one pose graph, where the point is **not** "more
+sensors → better" but that the two *absolute* fixes — Skyline (far horizon) and TRN (nadir image) —
+have **complementary localizability cliffs**, so their union stays pinned where either alone fails.
+A rover drives radially out of Tycho. Skyline reads the 360° horizon and aliases across the
+rotationally symmetric rim (equal-radius positions look identical), while TRN matches a nadir LROC
+WAC patch against the orbital map and locks on the *same* texture-rich rim that defeats the skyline —
+and would instead starve on smooth mare where a distant massif still pins the horizon. The two
+absolute factors come from **different public datasets at different scales** (LOLA elevation vs WAC
+imagery), each weighted by its *own* real uniqueness margin, so an aliased fix is down-weighted, not
+trusted. The honest payoff over real Tycho: fused-4 RMSE **148 m** vs **1090 m** with skyline-only
+fusion (**7.4×**) and **3789 m** for VO-only (**26×**) — the rover stays localized across the entire
+traverse, including the symmetric exterior where horizon-only fusion drifts away with VO.
+
+[MP4 video](docs/figures/skyline_lock/four_factor_fusion_demo.mp4)
+
+![Four-factor fusion over Tycho: a rover drives radially out of the crater on the LROC WAC ortho; the fused-plus-TRN estimate hugs ground truth with a tight covariance ellipse across the whole traverse, while skyline-only fusion and VO-only drift away in the rotationally symmetric exterior. Skyline fixes (green when unique, orange when aliased) lock only near the distinctive interior and exit; TRN fixes (blue dots) lock everywhere the rim texture is distinctive. A log error-vs-pose panel shows fused-plus-TRN staying low while the others climb](docs/figures/skyline_lock/four_factor_fusion_demo.gif)
+
+```bash
+# Reuses the cached LOLA LDEM and fetches a small LROC WAC patch on first run.
+python3 scripts/render_four_factor_fusion_demo.py \
+  --output docs/figures/skyline_lock/four_factor_fusion_demo.gif
+
+# Static summary figure (3 panels: scene, error vs pose, complementary margins) + JSON:
+python3 scripts/four_factor_fusion_demo.py --source lola --target tycho \
+  --output docs/figures/skyline_lock/four_factor_fusion.png \
+  --output-json docs/figures/skyline_lock/four_factor_fusion.json
+# ...or fully offline on synthetic terrain (hillshade appearance map, no download):
+python3 scripts/four_factor_fusion_demo.py --source synth --terrain craters \
+  --output outputs/factor_graph_fusion/synth_4f.png
+```
 
 ### Factor-graph fusion — star + VO + Skyline, each trusted only as far as it earns
 
-The capstone: the project's localization modalities fused into one estimator that lets each carry
+The three-factor predecessor of the demo above: the project's localization modalities fused into one estimator that lets each carry
 the fix only as far as its own confidence justifies. A rover drives out of Tycho's distinctive
 interior into self-similar terrain, fusing a star-tracker attitude factor, a visual-odometry
 between-factor (locally good, globally drifting), and a Skyline position factor whose information is
@@ -641,12 +674,13 @@ development loop and good first contribution areas.
 
 ## Roadmap
 
-Navigation state health; star tracker catalog adapters; a lightweight star + VO + Skyline pose-graph
-fusion landed (`scripts/factor_graph_fusion_demo.py`) — next: scale it to a full factor-graph backend
-(GTSAM/Ceres) with proper attitude states; stereo VO with metric scale and PnP; crater descriptor
-matching against orbital maps; visual-inertial fusion; LiDAR scan matching; curvature-correct horizon
-ranging; orbital navigation with star tracker fusion; ROS 2 integration; repeatable simulation
-benchmarks.
+Navigation state health; star tracker catalog adapters; a star + VO + Skyline + TRN pose-graph fusion
+landed (`scripts/four_factor_fusion_demo.py`), with Skyline and TRN chosen as complementary absolute
+factors — next: scale it to a full factor-graph backend (GTSAM/Ceres) with proper SO(2)/SO(3)
+attitude states (the current solver is positions-only linear, attitude handled by the star prior);
+stereo VO with metric scale and PnP; crater descriptor matching against orbital maps; visual-inertial
+fusion; LiDAR scan matching; curvature-correct horizon ranging; orbital navigation with star tracker
+fusion; ROS 2 integration; repeatable simulation benchmarks.
 
 ## References
 
