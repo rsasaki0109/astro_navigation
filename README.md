@@ -33,7 +33,7 @@ alongside the C++ apps.
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin; curvature-correct model in `scripts/skyline_curvature_demo.py` |
-| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/converse_cliff_demo.py` (same stack on Tycho highland vs Apollo 11 mare — the honest, terrain-shaped asymmetry), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), `scripts/factor_graph_so3_demo.py` (SO(3) attitude + metric-scale state, one observability story per DOF), margin-driven information, per-pose covariance |
+| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/converse_cliff_demo.py` (same stack on Tycho highland vs Apollo 11 mare — the honest, terrain-shaped asymmetry), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), `scripts/factor_graph_so3_demo.py` (SO(3) attitude + metric-scale state, one observability story per DOF), `scripts/factor_graph_so3_stereo_demo.py` (a stereo baseline makes scale observable with no absolute fix — gauge freedom traded for a calibration dependency), margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -275,6 +275,37 @@ python3 scripts/render_factor_graph_so3_demo.py --mp4 \
 
 # Static figure (mid blackout, end-of-traverse cliff) + JSON metrics incl. the no-fix gauge freedom:
 python3 scripts/factor_graph_so3_demo.py
+```
+
+### Stereo baseline turns the scale gauge into state — and the honest price
+
+The SO(3) demo above ended on a cliff: with **no absolute fix anywhere**, the metric scale is a pure
+gauge freedom — monocular VO reports translation only up to scale, so the joint solve leaves the scale
+state stuck at **1.000** and the whole map is similarity-ambiguous. There is a second honest way to get
+scale that needs no Skyline lock at all: a **stereo camera**. A known baseline triangulates metric
+depth, so a stereo-PnP step is a *metric* relative translation, dropped into the same SO(3) × scale
+graph as a unary factor `r = (s · vo_t − t_stereo) / σ`. It makes scale observable from the VO chain
+alone — the gauge freedom is gone (no-fix position RMSE **277 m → 48 m**, a 5.8× metric map).
+
+But there is no free lunch, and the figure shows the price. A **perfectly-calibrated** baseline lands
+the scale on truth (**1.000 → 0.914**, truth **0.926**) with zero fixes; a **mis-calibrated** one
+biases it almost exactly proportionally (a ±3% baseline error pulls *s* to **0.959 / 0.894**), and
+since scale multiplies every VO step that error propagates straight into the map. Stereo doesn't remove
+the failure mode — it **trades an unobservable gauge freedom for a calibration-sensitive one** you can
+at least measure and bound. So the scale DOF now has two honest sources: absolute fixes that bracket
+the chain, *or* a stereo baseline you trust.
+
+[MP4 video](docs/figures/skyline_lock/factor_graph_so3_stereo_demo.mp4)
+
+![Stereo metric-scale demo: no absolute fix anywhere. The left panel replays the Gauss-Newton iterations of the no-fix solve, the dead-reckoned map shrinking from an 8%-long overshoot onto the white ground track as the stereo factor pulls the global scale down toward truth. The right panel tracks the scale state per iteration for three conditions: no stereo stays flat at 1.000 (a gauge freedom that never moves), a true baseline converges onto the true 0.926, and a +3% mis-calibrated baseline converges to a biased 0.96](docs/figures/skyline_lock/factor_graph_so3_stereo_demo.gif)
+
+```bash
+# Static figure (scale-vs-iteration, calibration-sensitivity sweep, no-fix map error) + JSON:
+python3 scripts/factor_graph_so3_stereo_demo.py
+
+# Watch the no-fix scale converge from the stereo baseline as the map becomes metric:
+python3 scripts/render_factor_graph_so3_stereo_demo.py --mp4 \
+  --output docs/figures/skyline_lock/factor_graph_so3_stereo_demo.gif
 ```
 
 ### Skyline Lock — lost on the Moon from a single horizon
@@ -840,7 +871,7 @@ star-tracker blackout where the linear positions-only solver could only dead-rec
 extends to full **SO(3) attitude plus a metric-scale state** (`scripts/factor_graph_so3_demo.py`,
 Gauss-Newton on SO(3) × ℝ³ × ℝ₊), exposing one observability story per DOF class — gravity-held
 roll/pitch, anchor-dependent yaw, and a VO scale that is recoverable only when absolute fixes bracket
-the chain; next, stereo VO with PnP for the scale prior; crater descriptor matching against orbital
+the chain — and a stereo baseline now supplies that scale prior directly (`scripts/factor_graph_so3_stereo_demo.py`), making scale observable with no absolute fix at the cost of a measurable calibration dependency; next, crater descriptor matching against orbital
 maps; visual-inertial fusion; LiDAR scan matching; the curvature-correct horizon model landed
 (`scripts/skyline_curvature_demo.py`, `render_horizon(..., curvature_radius_m=...)`) — next, fold it
 into the fusion matcher by default; orbital navigation with star tracker fusion; ROS 2 integration;
