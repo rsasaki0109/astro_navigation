@@ -61,6 +61,22 @@ lock over Tycho with a conservative sigma circle.
 
 ## TRN And Localizability
 
+### Four-factor fusion (star + VO + Skyline + TRN)
+
+All four localization modalities in one pose graph, chosen so the two absolute fixes have
+complementary failure modes. Skyline reads the far horizon and aliases on Tycho's rotationally
+symmetric rim; TRN matches a nadir LROC WAC patch against the orbital map and locks on that same
+texture-rich rim (and would starve on smooth mare where the horizon still pins). Each absolute factor
+is weighted by its own real uniqueness margin. Over Tycho the fused-plus-TRN estimate stays localized
+across the whole traverse — RMSE 148 m vs 1090 m for skyline-only fusion (7.4×) and 3789 m for
+VO-only (26×).
+
+- [MP4 video](figures/skyline_lock/four_factor_fusion_demo.mp4)
+- [GIF animation](figures/skyline_lock/four_factor_fusion_demo.gif)
+- [Static figure](figures/skyline_lock/four_factor_fusion.png) · [JSON summary](figures/skyline_lock/four_factor_fusion.json)
+
+![Four-factor fusion](figures/skyline_lock/four_factor_fusion_demo.gif)
+
 ### Factor-graph fusion (star + VO + Skyline)
 
 The project's localization modalities fused into one pose graph: a star-tracker attitude factor, a
