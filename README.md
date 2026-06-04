@@ -129,6 +129,25 @@ python3 scripts/skyline_lock_demo.py --source lola --target tycho \
   --yaw-prior-deg 37 --output outputs/skyline_lock/lola_tycho.png
 ```
 
+### Skyline localizability routing — don't get lost
+
+The same horizon match yields a *map*: at every position, how unambiguously
+could a rover pin itself from the horizon (heading known from the star tracker)?
+This turns into a routing cost. A baseline A* takes the shortest path; a
+localizability-aware A* adds cost for aliased terrain, so it detours onto the
+distinctive crater rim where a horizon fix holds. Over Tycho the aware route is
+~2× more localizable on average and spends 22% (vs 69%) of its length in aliased
+terrain, for only ~6% extra distance — the navigation-health sibling of the
+existing TRN-confidence routing demo, driven purely by terrain shape.
+
+![Skyline localizability routing over Tycho: a localizability map (bright on the distinctive rim, dark over self-similar terrain) with a shortest route crossing aliased terrain and a localizability-aware route detouring onto the rim](docs/figures/skyline_lock/skyline_localizability_route.png)
+
+```bash
+# Reuses the cached LOLA LDEM from the Skyline Lock demo.
+python3 scripts/skyline_localizability_map.py \
+  --output docs/figures/skyline_lock/skyline_localizability_route.png
+```
+
 ### Lost Robot Challenge — one star frame + one lunar frame
 
 A lunar robot wakes up with no GNSS. It gets one synthetic star-camera frame

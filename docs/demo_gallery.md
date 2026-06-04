@@ -73,6 +73,18 @@ localizability and its cliffs, made visible.
 
 ![Skyline Lock](figures/skyline_lock/skyline_lock_demo.gif)
 
+### Skyline localizability routing
+
+The per-position horizon uniqueness becomes a localizability map (bright where a rover can pin itself
+from the horizon, dark over self-similar / rotationally symmetric terrain). A localizability-aware A*
+detours onto the distinctive rim instead of crossing aliased terrain — a horizon-driven "don't get
+lost" route.
+
+- [PNG comparison](figures/skyline_lock/skyline_localizability_route.png)
+- [JSON summary](figures/skyline_lock/skyline_localizability_route.json)
+
+![Skyline localizability routing](figures/skyline_lock/skyline_localizability_route.png)
+
 ### TRN confidence heatmap
 
 A localizability map over the Tycho ortho fixture. It scores where terrain-relative navigation should
