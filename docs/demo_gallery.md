@@ -61,6 +61,18 @@ lock over Tycho with a conservative sigma circle.
 
 ## TRN And Localizability
 
+### Skyline Lock
+
+A rover matches its observed horizon (elevation vs azimuth) against horizons predicted from real LOLA
+terrain across a candidate-position grid, recovering position and heading. The Tycho traverse shows a
+unique lock over the distinctive interior that degrades to an aliased arc as the rover leaves it —
+localizability and its cliffs, made visible.
+
+- [MP4 video](figures/skyline_lock/skyline_lock_demo.mp4)
+- [GIF animation](figures/skyline_lock/skyline_lock_demo.gif)
+
+![Skyline Lock](figures/skyline_lock/skyline_lock_demo.gif)
+
 ### TRN confidence heatmap
 
 A localizability map over the Tycho ortho fixture. It scores where terrain-relative navigation should

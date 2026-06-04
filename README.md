@@ -32,6 +32,7 @@ alongside the C++ apps.
 | Star tracker attitude | `build/apps/star_tracker_attitude` |
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
+| Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -95,8 +96,38 @@ DEGRADED,ROUTE_RISK_HIGH,1,1,...
 
 ## Featured Demos
 
-The first-screen demos show the current navigation direction: state estimation, terrain-relative
-position lock, and hazard-aware route planning.
+The first-screen demos show the current navigation direction: horizon-based absolute localization,
+state estimation, terrain-relative position lock, and hazard-aware route planning.
+
+### Skyline Lock — lost on the Moon from a single horizon
+
+A GNSS-denied rover with a star-tracker attitude looks at the black-sky / terrain boundary. The
+elevation-vs-azimuth horizon profile is a fingerprint of *where you are standing*: it is matched
+against horizons predicted from real LOLA terrain across a candidate-position grid (the star tracker
+supplies a yaw prior), recovering both position and heading. This replay traverses Tycho. Over the
+distinctive interior the match is a single sharp peak — a unique lock (uniqueness margin ~0.43). As
+the rover crosses the rim into self-similar terrain, the circular rim's rotational symmetry aliases
+the position and the estimate slides along the equal-rim-distance arc (ambiguous). Position stays
+sub-cell and heading recovers to ~1° throughout; what changes is *localizability* — and the demo
+keeps both the lock and its cliffs on screen. The horizon renderer uses a flat-plane model; lunar
+curvature is a documented next refinement.
+
+[MP4 video](docs/figures/skyline_lock/skyline_lock_demo.mp4)
+
+![Skyline Lock demo: a rover traverses Tycho while its observed horizon is matched against LOLA-predicted horizons; the score surface is a single sharp peak (LOCKED) over the distinctive interior and broadens into an aliased arc (AMBIGUOUS) as the rover leaves it](docs/figures/skyline_lock/skyline_lock_demo.gif)
+
+```bash
+# Downloads the LOLA LDEM_16 global model (~33 MB) on first run; cached after.
+python3 scripts/render_skyline_lock_demo.py \
+  --output docs/figures/skyline_lock/skyline_lock_demo.gif
+
+# Single-shot localization on one scene (synthetic, no download):
+python3 scripts/skyline_lock_demo.py --source synth --terrain hills \
+  --yaw-prior-deg 37 --output outputs/skyline_lock/synth_hills.png
+# ...or on real terrain, locking from Tycho's centre:
+python3 scripts/skyline_lock_demo.py --source lola --target tycho \
+  --yaw-prior-deg 37 --output outputs/skyline_lock/lola_tycho.png
+```
 
 ### Lost Robot Challenge — one star frame + one lunar frame
 
