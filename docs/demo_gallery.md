@@ -104,6 +104,22 @@ localizability and its cliffs, made visible.
 
 ![Skyline Lock](figures/skyline_lock/skyline_lock_demo.gif)
 
+### Lunar curvature horizon model
+
+The Moon's horizon is a spherical-datum cue: the surface drops ≈ r²/2R below the observer's tangent
+plane, so from a 2 m mast the bare horizon is only 2.6 km away. The rover observes that true curved
+horizon; this demo dials the *model* curvature from a flat plane to the true Moon. Over Tycho a near,
+kilometre-high rim dominates and the fix holds the whole sweep (curvature is free); over Apollo 11
+mare the flat model snaps the fix 16.6 km onto a phantom mode built from terrain below the lunar
+horizon, and the curvature-correct model recovers the right cell. Same correction, opposite
+consequence.
+
+- [MP4 video](figures/skyline_lock/skyline_curvature_demo.mp4)
+- [GIF animation](figures/skyline_lock/skyline_curvature_demo.gif)
+- [Static figure](figures/skyline_lock/skyline_curvature.png) · [JSON summary](figures/skyline_lock/skyline_curvature.json)
+
+![Lunar curvature horizon model](figures/skyline_lock/skyline_curvature_demo.gif)
+
 ### Skyline localizability routing
 
 The per-position horizon uniqueness becomes a localizability map (bright where a rover can pin itself
