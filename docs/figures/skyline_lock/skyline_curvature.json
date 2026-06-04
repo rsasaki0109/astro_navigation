@@ -1,0 +1,60 @@
+{
+  "title": "Skyline Lock Phase 7: lunar-curvature horizon model",
+  "lunar_radius_m": 1737400.0,
+  "mast_height_m": 2.0,
+  "bare_horizon_m": 2636.2,
+  "scenes": {
+    "distinctive": {
+      "target": "tycho",
+      "extent_m": 132664.7,
+      "px_to_m": 1895.21,
+      "relief_m": 5159.6,
+      "grid_step_m": 3360.8,
+      "mean_flat_minus_curved_elev_deg": 0.703,
+      "flat_model": {
+        "est_xy_m": [
+          66332.3,
+          66332.3
+        ],
+        "error_m": 0.0,
+        "best_ncc": 0.9885,
+        "uniqueness_margin": 0.4308
+      },
+      "curved_model": {
+        "est_xy_m": [
+          66332.3,
+          66332.3
+        ],
+        "error_m": 0.0,
+        "best_ncc": 0.9939,
+        "uniqueness_margin": 0.3779
+      }
+    },
+    "mare": {
+      "target": "apollo11",
+      "extent_m": 181940.1,
+      "px_to_m": 1895.21,
+      "relief_m": 2284.0,
+      "grid_step_m": 4609.1,
+      "mean_flat_minus_curved_elev_deg": 0.421,
+      "flat_model": {
+        "est_xy_m": [
+          81751.8,
+          104797.5
+        ],
+        "error_m": 16618.5,
+        "best_ncc": 0.9897,
+        "uniqueness_margin": 0.0035
+      },
+      "curved_model": {
+        "est_xy_m": [
+          90970.1,
+          90970.1
+        ],
+        "error_m": 0.0,
+        "best_ncc": 0.9979,
+        "uniqueness_margin": 0.0035
+      }
+    }
+  }
+}

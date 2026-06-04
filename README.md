@@ -32,7 +32,7 @@ alongside the C++ apps.
 | Star tracker attitude | `build/apps/star_tracker_attitude` |
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
-| Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin |
+| Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin; curvature-correct model in `scripts/skyline_curvature_demo.py` |
 | Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
@@ -176,8 +176,8 @@ distinctive interior the match is a single sharp peak — a unique lock (uniquen
 the rover crosses the rim into self-similar terrain, the circular rim's rotational symmetry aliases
 the position and the estimate slides along the equal-rim-distance arc (ambiguous). Position stays
 sub-cell and heading recovers to ~1° throughout; what changes is *localizability* — and the demo
-keeps both the lock and its cliffs on screen. The horizon renderer uses a flat-plane model; lunar
-curvature is a documented next refinement.
+keeps both the lock and its cliffs on screen. (This replay uses the flat-plane horizon model; the
+curvature-correct model and *when it matters* are the demo below.)
 
 [MP4 video](docs/figures/skyline_lock/skyline_lock_demo.mp4)
 
@@ -194,6 +194,39 @@ python3 scripts/skyline_lock_demo.py --source synth --terrain hills \
 # ...or on real terrain, locking from Tycho's centre:
 python3 scripts/skyline_lock_demo.py --source lola --target tycho \
   --yaw-prior-deg 37 --output outputs/skyline_lock/lola_tycho.png
+```
+
+### Lunar curvature — the horizon model, and where it costs you 16 km
+
+A technical deepening of the matcher above. On the airless Moon the horizon is a *spherical*-datum
+cue, not a flat one: the surface drops below the observer's tangent plane by ≈ r²/2R
+(R = 1 737.4 km), so from a 2 m mast the bare horizon sits just **2.6 km** away and a distant feature
+is visible only if its height clears r²/2R (~0.5 km at 40 km, ~7.4 km at 160 km). The rover observes
+that true curved horizon; the honest question is whether localizing it with the old flat-plane model
+(Phases 0–6) versus the curvature-correct model actually changes the fix. The answer is the
+project's stance in miniature: **it depends on what your skyline leans on.** Over Tycho a near,
+kilometre-high rim dominates, its flat-model bias is nearly uniform across candidates and cancels in
+the normalized match, so both models lock the centre — curvature is essentially free. Over **mare**,
+the lock leans on faint distant relief; the flat model counts terrain that is physically *below* the
+lunar horizon — phantom cues — and snaps the fix **16.6 km** onto a false mode, while the
+curvature-correct model removes the phantoms and recovers the right cell (the margin stays small —
+mare is genuinely aliased — so the picture gets *more* honest, not rosier). Same correction, opposite
+consequence. The fix is one term — `curvature_radius_m` in `render_horizon` — and refraction-free,
+unlike a terrestrial viewshed.
+
+[MP4 video](docs/figures/skyline_lock/skyline_curvature_demo.mp4)
+
+![Lunar curvature demo: the model curvature is dialled from a flat plane to the true Moon while the rover observes the real curved horizon. Over Tycho the position fix holds on truth the whole sweep (a near, tall rim dominates the skyline); over Apollo 11 mare the flat model places the fix ~60 km away on a phantom mode built from terrain below the lunar horizon, and as curvature is dialled in those phantom cues sink away and the fix snaps home to the truth cell](docs/figures/skyline_lock/skyline_curvature_demo.gif)
+
+```bash
+# Animation: sweep the model curvature flat → Moon over Tycho and a mare scene.
+python3 scripts/render_skyline_curvature_demo.py --mp4 \
+  --output docs/figures/skyline_lock/skyline_curvature_demo.gif
+
+# Static comparison figure (horizon profiles, score surfaces, horizon geometry) + JSON:
+python3 scripts/skyline_curvature_demo.py \
+  --output docs/figures/skyline_lock/skyline_curvature.png \
+  --output-json docs/figures/skyline_lock/skyline_curvature.json
 ```
 
 ### Skyline localizability routing — don't get lost
@@ -679,8 +712,10 @@ landed (`scripts/four_factor_fusion_demo.py`), with Skyline and TRN chosen as co
 factors — next: scale it to a full factor-graph backend (GTSAM/Ceres) with proper SO(2)/SO(3)
 attitude states (the current solver is positions-only linear, attitude handled by the star prior);
 stereo VO with metric scale and PnP; crater descriptor matching against orbital maps; visual-inertial
-fusion; LiDAR scan matching; curvature-correct horizon ranging; orbital navigation with star tracker
-fusion; ROS 2 integration; repeatable simulation benchmarks.
+fusion; LiDAR scan matching; the curvature-correct horizon model landed
+(`scripts/skyline_curvature_demo.py`, `render_horizon(..., curvature_radius_m=...)`) — next, fold it
+into the fusion matcher by default; orbital navigation with star tracker fusion; ROS 2 integration;
+repeatable simulation benchmarks.
 
 ## References
 

@@ -186,6 +186,7 @@ def render_horizon(
     r_min_m: float,
     r_max_m: float,
     n_range: int,
+    curvature_radius_m: float | None = None,
 ) -> np.ndarray:
     """Return horizon elevation angle (radians) per azimuth bin, shape (n_az,).
 
@@ -193,6 +194,17 @@ def render_horizon(
     elevation angle arctan2(h(r) - cam_z, r) -- the skyline is the upper
     envelope of the terrain seen from the camera. Off-map samples are ignored;
     an azimuth with no valid sample is reported as 0 (level horizon).
+
+    `curvature_radius_m`: if None (default) the ground is treated as a flat
+    plane -- the Phase 0-6 model, kept as the default so existing demos are
+    bit-for-bit unchanged. If a radius R is given (the Moon's 1 737.4 km), each
+    sample is dropped by the parabolic curvature term r^2/(2R) before its
+    elevation angle is taken, so distant terrain sinks toward (and below) the
+    true spherical horizon. The Moon has no atmosphere, so unlike a terrestrial
+    viewshed there is no refraction coefficient -- this is the clean geometric
+    horizon. The effect is large: from a 2 m mast the bare horizon is only
+    ~2.6 km away (sqrt(2 R h)), and a feature at range r is visible only if its
+    height clears r^2/(2R) (~0.5 km at 40 km, ~7.5 km at 160 km).
     """
     cam_x, cam_y = cam_xy_m
     cam_z = _sample_height(heightmap_m, px_to_m, cam_x, cam_y) + mast_height_m
@@ -211,6 +223,12 @@ def render_horizon(
         heightmap_m, map_x, map_y, cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT, borderValue=float("nan"),
     ).astype(np.float64)  # (A, R)
+
+    if curvature_radius_m is not None and curvature_radius_m > 0.0:
+        # Parabolic drop of the spherical datum below the observer's tangent
+        # plane at ground range r: ~ r^2 / (2R). (chord vs arc differ <0.1% at
+        # these ranges, so the planar rng_m is used directly as the distance.)
+        h = h - (rng_m[None, :] ** 2) / (2.0 * curvature_radius_m)
 
     elev = np.arctan2(h - cam_z, rng_m[None, :])  # (A, R)
     elev = np.where(np.isfinite(elev), elev, -np.inf)
