@@ -179,12 +179,17 @@ consequence.
 The per-position horizon uniqueness becomes a localizability map (bright where a rover can pin itself
 from the horizon, dark over self-similar / rotationally symmetric terrain). A localizability-aware A*
 detours onto the distinctive rim instead of crossing aliased terrain — a horizon-driven "don't get
-lost" route.
+lost" route. The animation runs it in two acts over Tycho: Act 1 replays the aware A* expansion
+flooding around the dark interior, and Act 2 walks both routes while the localizability-along-route
+trace fills in — the shortest path flatlines at zero (aliased) through the middle while the aware path
+stays above the lock threshold. For a ×1.06 detour (6% longer) the aware route cuts its aliased
+exposure from **69% → 22%** of the path and doubles mean localizability (0.048 → 0.096).
 
-- [PNG comparison](figures/skyline_lock/skyline_localizability_route.png)
-- [JSON summary](figures/skyline_lock/skyline_localizability_route.json)
+- [MP4 video](figures/skyline_lock/skyline_localizability_route_demo.mp4)
+- [GIF animation](figures/skyline_lock/skyline_localizability_route_demo.gif)
+- [PNG comparison](figures/skyline_lock/skyline_localizability_route.png) · [JSON summary](figures/skyline_lock/skyline_localizability_route.json)
 
-![Skyline localizability routing](figures/skyline_lock/skyline_localizability_route.png)
+![Skyline localizability routing](figures/skyline_lock/skyline_localizability_route_demo.gif)
 
 ### TRN confidence heatmap
 
