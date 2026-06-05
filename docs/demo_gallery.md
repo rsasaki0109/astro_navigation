@@ -146,6 +146,23 @@ iterations: heading collapses, tilt stays flat, and the scale state slides towar
 
 ![SO(3) attitude + metric scale](figures/skyline_lock/factor_graph_so3_demo.gif)
 
+### Stereo baseline → metric scale (breaking the gauge freedom)
+
+The SO(3) demo above leaves metric scale a pure gauge freedom when no absolute fix brackets the VO
+chain. This demo adds a stereo camera: a known baseline triangulates metric depth, so a stereo-PnP step
+is a metric relative translation that enters the same SO(3) × scale graph as a unary factor
+`r = (s·vo_t − t_stereo)/σ`. With **no absolute fix anywhere**, a perfectly-calibrated baseline recovers
+scale from the VO chain alone (1.000 → 0.914, truth 0.926; no-fix position RMSE 277 m → 48 m). The
+honest price is a calibration dependency: a ±3% baseline error biases the recovered scale almost
+proportionally (→ 0.959 / 0.894), and since scale multiplies every step that propagates into the map.
+Stereo trades an unobservable gauge freedom for a calibration-sensitive one you can measure and bound.
+
+- [MP4 video](figures/skyline_lock/factor_graph_so3_stereo_demo.mp4)
+- [GIF animation](figures/skyline_lock/factor_graph_so3_stereo_demo.gif)
+- [Static figure](figures/skyline_lock/factor_graph_so3_stereo.png) · [JSON summary](figures/skyline_lock/factor_graph_so3_stereo.json)
+
+![Stereo baseline metric scale](figures/skyline_lock/factor_graph_so3_stereo_demo.gif)
+
 ### Skyline Lock
 
 A rover matches its observed horizon (elevation vs azimuth) against horizons predicted from real LOLA
