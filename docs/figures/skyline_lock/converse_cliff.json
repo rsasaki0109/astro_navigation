@@ -1,0 +1,26 @@
+{
+  "highland": {
+    "target": "tycho",
+    "vo_only_rmse_m": 3788.8,
+    "fused3_rmse_m": 1090.0,
+    "fused4_rmse_m": 147.9,
+    "n_skyline_unique": 7,
+    "n_skyline_fixes": 15,
+    "n_trn_unique": 20,
+    "n_trn_fixes": 20,
+    "skyline_margin_median": 0.0151,
+    "trn_margin_median": 0.5687
+  },
+  "mare": {
+    "target": "apollo11",
+    "vo_only_rmse_m": 5196.0,
+    "fused3_rmse_m": 1778.2,
+    "fused4_rmse_m": 158.9,
+    "n_skyline_unique": 2,
+    "n_skyline_fixes": 15,
+    "n_trn_unique": 20,
+    "n_trn_fixes": 20,
+    "skyline_margin_median": 0.0255,
+    "trn_margin_median": 0.5262
+  }
+}

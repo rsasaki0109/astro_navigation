@@ -77,6 +77,25 @@ VO-only (26×).
 
 ![Four-factor fusion](figures/skyline_lock/four_factor_fusion_demo.gif)
 
+### Converse cliff (one stack, two real terrains)
+
+The four-factor stack above, run unchanged over two real LRO scenes, shows the honest — and
+*asymmetric* — version of "complementary failure modes." Over **Tycho** the kilometre-high rim gives
+the horizon relief, so Skyline locks across the distinctive interior (7/15 unique) before aliasing on
+the symmetric exterior. Over the **Apollo 11 mare** the flat plain leaves the horizon nearly
+featureless and Skyline aliases almost everywhere (2/15 unique) — but the mare is not textureless from
+above, so the nadir TRN matcher still locks 20/20 on albedo speckle and carries the fix (fused+TRN
+RMSE 159 m vs 1778 m skyline-only). The lesson is not "two complementary cliffs" but that Skyline is a
+relief-dependent cue and TRN a texture-dependent one, and margin-weighting discounts whichever the
+terrain starves — with no terrain classifier in the loop. (This also corrects an overstated note that
+TRN starves on mare; the real LROC WAC data shows the opposite direction.)
+
+- [MP4 video](figures/skyline_lock/converse_cliff_demo.mp4)
+- [GIF animation](figures/skyline_lock/converse_cliff_demo.gif)
+- [Static figure](figures/skyline_lock/converse_cliff.png) · [JSON summary](figures/skyline_lock/converse_cliff.json)
+
+![Converse cliff](figures/skyline_lock/converse_cliff_demo.gif)
+
 ### Factor-graph fusion (star + VO + Skyline)
 
 The project's localization modalities fused into one pose graph: a star-tracker attitude factor, a

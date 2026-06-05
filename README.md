@@ -33,7 +33,7 @@ alongside the C++ apps.
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin; curvature-correct model in `scripts/skyline_curvature_demo.py` |
-| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), `scripts/factor_graph_so3_demo.py` (SO(3) attitude + metric-scale state, one observability story per DOF), margin-driven information, per-pose covariance |
+| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/converse_cliff_demo.py` (same stack on Tycho highland vs Apollo 11 mare — the honest, terrain-shaped asymmetry), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), `scripts/factor_graph_so3_demo.py` (SO(3) attitude + metric-scale state, one observability story per DOF), margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -108,13 +108,14 @@ sensors → better" but that the two *absolute* fixes — Skyline (far horizon) 
 have **complementary localizability cliffs**, so their union stays pinned where either alone fails.
 A rover drives radially out of Tycho. Skyline reads the 360° horizon and aliases across the
 rotationally symmetric rim (equal-radius positions look identical), while TRN matches a nadir LROC
-WAC patch against the orbital map and locks on the *same* texture-rich rim that defeats the skyline —
-and would instead starve on smooth mare where a distant massif still pins the horizon. The two
-absolute factors come from **different public datasets at different scales** (LOLA elevation vs WAC
-imagery), each weighted by its *own* real uniqueness margin, so an aliased fix is down-weighted, not
-trusted. The honest payoff over real Tycho: fused-4 RMSE **148 m** vs **1090 m** with skyline-only
+WAC patch against the orbital map and locks on the *same* texture-rich rim that defeats the skyline.
+The two absolute factors come from **different public datasets at different scales** (LOLA elevation
+vs WAC imagery), each weighted by its *own* real uniqueness margin, so an aliased fix is down-weighted,
+not trusted. The honest payoff over real Tycho: fused-4 RMSE **148 m** vs **1090 m** with skyline-only
 fusion (**7.4×**) and **3789 m** for VO-only (**26×**) — the rover stays localized across the entire
-traverse, including the symmetric exterior where horizon-only fusion drifts away with VO.
+traverse, including the symmetric exterior where horizon-only fusion drifts away with VO. (Where the
+two cliffs actually fall is *terrain*-shaped, and not the symmetric story intuition suggests — see the
+converse-cliff demo below.)
 
 [MP4 video](docs/figures/skyline_lock/four_factor_fusion_demo.mp4)
 
@@ -132,6 +133,38 @@ python3 scripts/four_factor_fusion_demo.py --source lola --target tycho \
 # ...or fully offline on synthetic terrain (hillshade appearance map, no download):
 python3 scripts/four_factor_fusion_demo.py --source synth --terrain craters \
   --output outputs/factor_graph_fusion/synth_4f.png
+```
+
+### Converse cliff — the same stack on two real terrains, and the honest asymmetry
+
+The four-factor demo is easy to oversell as "two sensors, two complementary cliffs." Run that *same*
+stack, unchanged, over two real LRO scenes and the truth is more interesting — and **asymmetric**.
+Over **Tycho** the kilometre-high rim gives the horizon relief, so Skyline locks across the
+distinctive interior (**7/15** fixes unique) before aliasing on the symmetric exterior. Over the
+**Apollo 11 mare** the basalt plain is flat, so the 360° horizon is nearly featureless and Skyline
+aliases almost everywhere (**2/15** unique) — but the mare is *not* textureless from above: with the
+real LROC WAC ortho its albedo speckle is rich enough that the nadir TRN matcher still locks **20/20**
+and carries the fix (fused+TRN RMSE **159 m** vs **1778 m** skyline-only). So the honest lesson is not
+"complementary cliffs" but that **Skyline is a relief-dependent cue and TRN a texture-dependent one,
+and the Moon feeds them unequally per terrain.** Fusion survives both because each factor is weighted
+by its own real uniqueness margin — whichever cue the terrain starves is discounted automatically,
+with no terrain classifier in the loop. (This also corrects an earlier overstatement that TRN starves
+on mare while the horizon pins; the real data shows the opposite direction.)
+
+[MP4 video](docs/figures/skyline_lock/converse_cliff_demo.mp4)
+
+![Converse cliff: two rows, Tycho highland on top and Apollo 11 mare on the bottom, each showing the LROC WAC appearance map with ground-truth, VO-only, skyline-only and fused-plus-TRN tracks, a log error-vs-pose panel, and a uniqueness-margin panel. Over Tycho the skyline margin spikes across the distinctive interior then collapses; over the mare it never lifts off the floor, while the TRN margin sits high on both — so fused-plus-TRN hugs truth in both rows while skyline-only peels away with VO on the mare from the start](docs/figures/skyline_lock/converse_cliff_demo.gif)
+
+```bash
+# Two-scene static figure (Tycho vs Apollo 11 mare) + JSON; reuses the cached
+# LOLA LDEM and fetches the small Apollo 11 WAC patch on first run.
+python3 scripts/converse_cliff_demo.py \
+  --output docs/figures/skyline_lock/converse_cliff.png \
+  --output-json docs/figures/skyline_lock/converse_cliff.json
+
+# Side-by-side animation (GIF + MP4):
+python3 scripts/render_converse_cliff_demo.py --mp4 \
+  --output docs/figures/skyline_lock/converse_cliff_demo.gif
 ```
 
 ### Factor-graph fusion — star + VO + Skyline, each trusted only as far as it earns
@@ -786,8 +819,10 @@ development loop and good first contribution areas.
 ## Roadmap
 
 Navigation state health; star tracker catalog adapters; a star + VO + Skyline + TRN pose-graph fusion
-landed (`scripts/four_factor_fusion_demo.py`), with Skyline and TRN chosen as complementary absolute
-factors — a self-contained nonlinear factor-graph backend now carries heading as an SO(2) graph
+landed (`scripts/four_factor_fusion_demo.py`), with Skyline and TRN as absolute factors whose
+localizability cliffs are *terrain*-shaped rather than tidily symmetric — a two-scene converse-cliff
+study (`scripts/converse_cliff_demo.py`) shows the horizon leading on Tycho's relief and the ground
+texture carrying the flat Apollo 11 mare — a self-contained nonlinear factor-graph backend now carries heading as an SO(2) graph
 state (`scripts/factor_graph_so2_demo.py`, Gauss-Newton on the circle), recovering attitude across a
 star-tracker blackout where the linear positions-only solver could only dead-reckon it; that solver now
 extends to full **SO(3) attitude plus a metric-scale state** (`scripts/factor_graph_so3_demo.py`,
