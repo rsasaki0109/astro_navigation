@@ -316,14 +316,26 @@ localizability-aware A* adds cost for aliased terrain, so it detours onto the
 distinctive crater rim where a horizon fix holds. Over Tycho the aware route is
 ~2× more localizable on average and spends 22% (vs 69%) of its length in aliased
 terrain, for only ~6% extra distance — the navigation-health sibling of the
-existing TRN-confidence routing demo, driven purely by terrain shape.
+existing TRN-confidence routing demo, driven purely by terrain shape. The
+animation runs it in two acts: the aware A* expansion flooding around the dark
+interior, then both routes walked while the localizability-along-route trace
+fills in — the shortest path flatlines at zero through the middle while the aware
+path stays above the lock threshold.
 
-![Skyline localizability routing over Tycho: a localizability map (bright on the distinctive rim, dark over self-similar terrain) with a shortest route crossing aliased terrain and a localizability-aware route detouring onto the rim](docs/figures/skyline_lock/skyline_localizability_route.png)
+[MP4 video](docs/figures/skyline_lock/skyline_localizability_route_demo.mp4)
+
+![Skyline localizability routing over Tycho: Act 1 shows the localizability-aware A* expansion flooding around the dark aliased interior; Act 2 walks both routes over the localizability map (bright on the distinctive rim, dark over self-similar terrain) while a panel fills in localizability along each route — the shortest path dives to zero through the dark middle while the aware route detours onto the rim and stays above the aliased threshold](docs/figures/skyline_lock/skyline_localizability_route_demo.gif)
 
 ```bash
 # Reuses the cached LOLA LDEM from the Skyline Lock demo.
+# Static comparison figure + JSON:
 python3 scripts/skyline_localizability_map.py \
-  --output docs/figures/skyline_lock/skyline_localizability_route.png
+  --output docs/figures/skyline_lock/skyline_localizability_route.png \
+  --output-json docs/figures/skyline_lock/skyline_localizability_route.json
+
+# Two-act animation (A* expansion, then traverse) as GIF + MP4:
+python3 scripts/render_skyline_localizability_route_demo.py --mp4 \
+  --output docs/figures/skyline_lock/skyline_localizability_route_demo.gif
 ```
 
 ### Lost Robot Challenge — one star frame + one lunar frame
