@@ -29,10 +29,17 @@ Honest envelope (all visible / reproducible from public data):
   - Each factor's information is set by its OWN real uniqueness margin (a 1-D
     horizon-profile margin for Skyline, a 2-D image template margin for TRN), so
     an aliased fix is down-weighted automatically, not trusted.
-  - The converse cliff is real too: on smooth mare TRN is feature-starved
-    (see scripts/lro_trn_demo.py: Apollo 11/12 mare are its hardest cases) while
-    a distant massif can still pin the skyline. Fusion wins because the cliffs
-    do not coincide -- not because any one sensor is globally best.
+  - The converse cliff is real, but NOT the tidy mirror image this once claimed.
+    Running this same stack over the Apollo 11 mare (scripts/converse_cliff_demo.py)
+    shows the opposite of the intuition that "TRN starves on mare": with the real
+    LROC WAC ortho the mare's albedo speckle is texture-rich enough that this NCC
+    matcher locks 20/20, while the FLAT mare horizon leaves Skyline almost nothing
+    to lock onto (2/15 unique vs 7/15 over Tycho). So the honest version is
+    asymmetric -- Skyline is a relief-dependent cue, TRN a texture-dependent one,
+    and the Moon feeds them unequally per terrain. Fusion wins not because the
+    cliffs are symmetric but because each factor is margin-weighted, so whichever
+    cue the terrain starves is discounted automatically -- no sensor is globally
+    best, and no terrain classifier is in the loop.
 
 Reuses scripts/factor_graph_fusion_demo.py for the scenario, the Skyline matcher
 and the linear pose-graph solver (positions decouple per axis given the absolute
