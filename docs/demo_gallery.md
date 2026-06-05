@@ -108,6 +108,25 @@ replays the Gauss-Newton iterations straightening the arc as the heading error c
 
 ![Heading as a graph state](figures/skyline_lock/factor_graph_so2_demo.gif)
 
+### SO(3) attitude + metric scale (one observability story per DOF)
+
+The SO(2) backend above assumes a planar world and a known VO scale. This demo lifts the pose graph to
+full SO(3) attitude plus a global metric-scale state and solves it with a self-contained Gauss-Newton
+on SO(3) × ℝ³ × ℝ₊ (numerical Jacobian, no GTSAM/Ceres). Each class of degree of freedom has a
+different observability character across a star-tracker blackout: **roll/pitch** are gravity-observable
+so they stay pinned even with no future anchor (end-of-traverse tilt 0.48° with gravity vs 2.86°
+without); **yaw** is gravity-unobservable, recovered by a fix that resumes after a mid-traverse blackout
+(2.2° → 1.3°) but tied at end-of-traverse (3.7° → 3.8°, the cliff); **metric scale** is recovered only
+when absolute Skyline fixes bracket the VO chain (+8% bias → 0.914, truth 0.926, RMSE 158 m → 40 m) and
+is a pure gauge freedom with no fix at all (stays 1.000). The animation replays the Gauss-Newton
+iterations: heading collapses, tilt stays flat, and the scale state slides toward truth.
+
+- [MP4 video](figures/skyline_lock/factor_graph_so3_demo.mp4)
+- [GIF animation](figures/skyline_lock/factor_graph_so3_demo.gif)
+- [Static figure](figures/skyline_lock/factor_graph_so3.png) · [JSON summary](figures/skyline_lock/factor_graph_so3.json)
+
+![SO(3) attitude + metric scale](figures/skyline_lock/factor_graph_so3_demo.gif)
+
 ### Skyline Lock
 
 A rover matches its observed horizon (elevation vs azimuth) against horizons predicted from real LOLA

@@ -33,7 +33,7 @@ alongside the C++ apps.
 | Mission navigation state | `build/apps/mission_navigation_demo`, JSON/CSV `NavState`, route risk score |
 | Terrain-relative navigation | LRO WAC + LOLA Tycho fixtures, TRN summaries, confidence-aware routing |
 | Horizon localization (Skyline Lock) | `scripts/skyline_lock_demo.py`, real LOLA horizons, position + heading + localizability margin; curvature-correct model in `scripts/skyline_curvature_demo.py` |
-| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), margin-driven information, per-pose covariance |
+| Confidence-weighted fusion | `scripts/four_factor_fusion_demo.py` (star + VO + Skyline + TRN, complementary cliffs), `scripts/factor_graph_fusion_demo.py` (3-factor base), `scripts/factor_graph_so2_demo.py` (nonlinear SO(2) backend, heading as a graph state across a star-tracker blackout), `scripts/factor_graph_so3_demo.py` (SO(3) attitude + metric-scale state, one observability story per DOF), margin-driven information, per-pose covariance |
 | Hazard-aware routing | C++ `hazard_route_demo`, route metrics, dynamic replanning demo |
 | Benchmark harness | HYG stars, NASA POLAR, replay renderers, smoke tests |
 
@@ -200,6 +200,48 @@ python3 scripts/render_factor_graph_so2_demo.py --mp4 \
 # Static figure (mid vs end blackout) + JSON metrics:
 python3 scripts/factor_graph_so2_demo.py            # synth craters, rover-scale
 python3 scripts/factor_graph_so2_demo.py --source lola --target tycho   # real LOLA
+```
+
+### SO(3) attitude + metric scale — one observability story per degree of freedom
+
+The SO(2) backend above assumes a planar world and a known visual-odometry scale. A rover on real
+crater slopes pitches and rolls, and its VO reports translation only *up to an unknown metric scale*.
+Lifting the graph to full **SO(3)** attitude plus a **global scale state** forces three honest
+questions — one per class of degree of freedom — and the answers are deliberately different:
+
+- **Roll & pitch are gravity-observable.** An always-on accelerometer sees the gravity vector in the
+  body frame, which pins tilt (2 of the 3 rotational DOF) at *every* pose — even mid-blackout, with no
+  star and no future anchor. So tilt never really drifts: in an end-of-traverse blackout it stays
+  **0.48°** with gravity versus **2.86°** with the gravity factor removed. The honest message is *don't
+  oversell "SO(3) attitude recovery"* — two of three axes were never the hard part, and the figure
+  shows the counterfactual that proves gravity is what holds them.
+- **Yaw is the gravity-unobservable DOF** (rotation about the gravity axis leaves the accelerometer
+  unchanged). It is the same batch-smoothing story as the SO(2) demo, now correctly isolated: across a
+  mid-traverse blackout a resuming fix flows backward and recovers heading **2.2° → 1.3°** (peak
+  4.8° → 1.4°); at end-of-traverse there is no future anchor and the joint solve ties the forward
+  filter (**3.7° → 3.8°**) — the cliff.
+- **Metric scale is observable only when absolute fixes bracket a VO chain.** The Skyline locks pin the
+  chain's true length, recovering the **+8%** VO scale error (estimated **0.914**, truth **0.926**) and
+  pulling position RMSE from **158 m → 40 m**. Run the same traverse with *no* absolute fix and scale
+  is a pure gauge freedom: the estimate stays at **1.000**, the whole map similarity-ambiguous.
+
+The solver is a self-contained Gauss-Newton on **SO(3) × ℝ³ × ℝ₊**: an exp/log retraction on each pose
+rotation, one global log-scale, and a generic *numerical* Jacobian so the factor set stays declarative
+(analytic SO(3) Jacobians are verbose; this keeps the reference solver compact and obviously correct —
+the analytic/GTSAM path is the production route). Skyline fixes use the real matcher and real
+uniqueness-margin → information, same honesty bar as the fusion demos.
+
+[MP4 video](docs/figures/skyline_lock/factor_graph_so3_demo.mp4)
+
+![SO(3)+scale factor-graph demo: a mid-traverse star-tracker blackout is held fixed while the Gauss-Newton iterations replay across three panels. Left, the estimated trajectory snaps onto the white ground track as the solve converges; middle, the per-pose attitude error shows heading (yaw) collapsing inside the shaded blackout band while tilt (roll+pitch) stays flat near zero throughout, held by gravity; right, the global metric-scale state slides from the assumed 1.000 down toward the true 0.926 as the absolute Skyline fixes bracket the VO chain](docs/figures/skyline_lock/factor_graph_so3_demo.gif)
+
+```bash
+# Watch the GN iterations: heading collapses, tilt stays flat, scale converges (synthetic, no download):
+python3 scripts/render_factor_graph_so3_demo.py --mp4 \
+  --output docs/figures/skyline_lock/factor_graph_so3_demo.gif
+
+# Static figure (mid blackout, end-of-traverse cliff) + JSON metrics incl. the no-fix gauge freedom:
+python3 scripts/factor_graph_so3_demo.py
 ```
 
 ### Skyline Lock — lost on the Moon from a single horizon
@@ -747,10 +789,12 @@ Navigation state health; star tracker catalog adapters; a star + VO + Skyline + 
 landed (`scripts/four_factor_fusion_demo.py`), with Skyline and TRN chosen as complementary absolute
 factors — a self-contained nonlinear factor-graph backend now carries heading as an SO(2) graph
 state (`scripts/factor_graph_so2_demo.py`, Gauss-Newton on the circle), recovering attitude across a
-star-tracker blackout where the linear positions-only solver could only dead-reckon it; next, extend
-the same solver to full SO(3) attitude and tighten the VO factor with metric scale;
-stereo VO with metric scale and PnP; crater descriptor matching against orbital maps; visual-inertial
-fusion; LiDAR scan matching; the curvature-correct horizon model landed
+star-tracker blackout where the linear positions-only solver could only dead-reckon it; that solver now
+extends to full **SO(3) attitude plus a metric-scale state** (`scripts/factor_graph_so3_demo.py`,
+Gauss-Newton on SO(3) × ℝ³ × ℝ₊), exposing one observability story per DOF class — gravity-held
+roll/pitch, anchor-dependent yaw, and a VO scale that is recoverable only when absolute fixes bracket
+the chain; next, stereo VO with PnP for the scale prior; crater descriptor matching against orbital
+maps; visual-inertial fusion; LiDAR scan matching; the curvature-correct horizon model landed
 (`scripts/skyline_curvature_demo.py`, `render_horizon(..., curvature_radius_m=...)`) — next, fold it
 into the fusion matcher by default; orbital navigation with star tracker fusion; ROS 2 integration;
 repeatable simulation benchmarks.
